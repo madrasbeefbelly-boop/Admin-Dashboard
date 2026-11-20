@@ -106,6 +106,17 @@ export default function SettingsPage() {
     });
   };
 
+  const handleStartWhatsApp = () => {
+    startWhatsApp(undefined, {
+      onSuccess: () => {
+        toast.success('Starting WhatsApp bot... please wait a moment for the QR code.');
+      },
+      onError: (err: any) => {
+        toast.error(err?.response?.data?.error || err?.message || 'Failed to trigger WhatsApp bot');
+      },
+    });
+  };
+
   // API hooks
   const { data: profile, isLoading } = useProfile();
   const { mutate: updateProfile, isPending: saving } = useUpdateProfile();
@@ -359,7 +370,7 @@ export default function SettingsPage() {
                     type="button"
                     variant="outline"
                     size="sm"
-                    onClick={() => startWhatsApp()}
+                    onClick={handleStartWhatsApp}
                     disabled={isStartingWA}
                     className="text-xs"
                   >
@@ -368,7 +379,7 @@ export default function SettingsPage() {
                   </Button>
                 </div>
               </div>
-            ) : waStatus?.status === 'initializing' ? (
+            ) : waStatus?.status === 'initializing' || isStartingWA ? (
               <div className="p-8 text-center bg-slate-50 border border-dashed border-slate-300 rounded-2xl">
                 <Loader2 className="w-8 h-8 text-emerald-600 animate-spin mx-auto mb-3" />
                 <p className="text-sm font-semibold text-slate-800">Starting WhatsApp Web Session...</p>
@@ -383,7 +394,7 @@ export default function SettingsPage() {
                 </p>
                 <Button
                   type="button"
-                  onClick={() => startWhatsApp()}
+                  onClick={handleStartWhatsApp}
                   disabled={isStartingWA}
                   className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold"
                 >

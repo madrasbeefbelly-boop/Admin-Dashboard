@@ -151,6 +151,11 @@ const pool = new Pool({
 });
 pool.on('error', error => console.error('Idle database connection closed:', error.code ?? error.message));
 
+// Initialize WhatsApp background worker with database pool
+if (!hosted) {
+  whatsappService.setPool(pool);
+}
+
 // Test database connection
 if (!hosted) pool.query('SELECT NOW()', (err, res) => {
   if (err) {
@@ -1959,11 +1964,22 @@ app.get('/api/whatsapp/status', async (req, res) => {
   try {
     const settingsRes = await pool.query('SELECT * FROM whatsapp_settings WHERE id = 1');
     const settings = settingsRes.rows[0] || {};
-    const status = whatsappService.getStatus();
+    
+    // If running in local active process, use live status; otherwise use database synced status
+    const isLive = !hosted && (whatsappService.status === 'connected' || (whatsappService.status === 'qr_ready' && whatsappService.qrCode));
+    const effectiveStatus = isLive ? whatsappService.getStatus() : {
+      status: settings.bot_status || 'disconnected',
+      isConnected: settings.bot_status === 'connected',
+      isInitializing: settings.bot_status === 'initializing',
+      qrCode: settings.qr_code || null,
+      info: settings.bot_phone ? { pushname: 'Madras Beef Belly', phone: settings.bot_phone, wid: settings.bot_phone } : null,
+      lastError: settings.last_error || null
+    };
+
     res.json({
       success: true,
       data: {
-        ...status,
+        ...effectiveStatus,
         targetPhone: settings.target_phone || '',
         targetGroupId: settings.target_group_id || '',
         alertLowStock: settings.alert_low_stock ?? true,
@@ -1979,7 +1995,14 @@ app.get('/api/whatsapp/status', async (req, res) => {
 // START WhatsApp client (generates new QR if not connected)
 app.post('/api/whatsapp/start', async (req, res) => {
   try {
-    whatsappService.start().catch((e) => console.error('[WhatsApp] start error:', e.message));
+    await pool.query(`
+      UPDATE whatsapp_settings 
+      SET command = 'start', bot_status = 'initializing', updated_at = NOW() 
+      WHERE id = 1
+    `);
+    if (!hosted) {
+      whatsappService.start().catch((e) => console.error('[WhatsApp] start error:', e.message));
+    }
     res.json({ success: true, message: 'WhatsApp initialization triggered' });
   } catch (err) {
     console.error('Error starting WhatsApp:', err);
@@ -2011,8 +2034,15 @@ app.post('/api/whatsapp/config', async (req, res) => {
 // DISCONNECT / LOGOUT WhatsApp
 app.post('/api/whatsapp/disconnect', async (req, res) => {
   try {
-    const result = await whatsappService.disconnect();
-    res.json(result);
+    await pool.query(`
+      UPDATE whatsapp_settings 
+      SET command = 'disconnect', bot_status = 'disconnected', qr_code = NULL, updated_at = NOW() 
+      WHERE id = 1
+    `);
+    if (!hosted) {
+      await whatsappService.disconnect();
+    }
+    res.json({ success: true, message: 'WhatsApp disconnected' });
   } catch (err) {
     console.error('Error disconnecting WhatsApp:', err);
     res.status(500).json({ success: false, error: err.message });
@@ -2027,7 +2057,11 @@ app.post('/api/whatsapp/test', async (req, res) => {
     if (!target) {
       return res.status(400).json({ success: false, error: 'Please enter a target phone number first.' });
     }
-    await whatsappService.sendTestMessage(target);
+    if (!hosted && whatsappService.status === 'connected') {
+      await whatsappService.sendTestMessage(target);
+    } else {
+      await pool.query(`UPDATE whatsapp_settings SET command = 'test', updated_at = NOW() WHERE id = 1`);
+    }
     res.json({ success: true, message: 'Test message sent to WhatsApp!' });
   } catch (err) {
     console.error('Error sending test WhatsApp message:', err);

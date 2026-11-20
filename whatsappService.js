@@ -18,6 +18,65 @@ class WhatsAppService {
     this.clientInfo = null;
     this.lastError = null;
     this.isInitializing = false;
+    this.pool = null;
+    this.workerInterval = null;
+  }
+
+  // Set database pool and start background listener if on persistent machine
+  setPool(pool) {
+    this.pool = pool;
+    if (!this.workerInterval) {
+      this.startCommandListener();
+    }
+  }
+
+  // Sync current bot state to PostgreSQL so Vercel frontend has instant access
+  async syncToDb() {
+    if (!this.pool) return;
+    try {
+      await this.pool.query(
+        `UPDATE whatsapp_settings 
+         SET bot_status = $1, qr_code = $2, bot_phone = $3, last_error = $4, updated_at = NOW() 
+         WHERE id = 1`,
+        [
+          this.status,
+          this.qrCode,
+          this.clientInfo?.wid || this.clientInfo?.phone || null,
+          this.lastError
+        ]
+      );
+    } catch (err) {
+      console.error('[WhatsApp] DB sync error:', err.message);
+    }
+  }
+
+  // Background listener on DB commands (enables Vercel to trigger local bot)
+  startCommandListener() {
+    if (this.workerInterval) return;
+    this.workerInterval = setInterval(async () => {
+      if (!this.pool) return;
+      try {
+        const { rows } = await this.pool.query('SELECT command, target_phone FROM whatsapp_settings WHERE id = 1');
+        if (!rows.length || !rows[0].command || rows[0].command === 'idle') return;
+
+        const cmd = rows[0].command;
+        const phone = rows[0].target_phone;
+
+        // Reset command to idle immediately to prevent duplicate runs
+        await this.pool.query("UPDATE whatsapp_settings SET command = 'idle' WHERE id = 1");
+
+        console.log(`[WhatsApp Worker] Picked up command from DB: ${cmd}`);
+        if (cmd === 'start') {
+          await this.start();
+        } else if (cmd === 'disconnect') {
+          await this.disconnect();
+        } else if (cmd === 'test' && phone) {
+          await this.sendTestMessage(phone);
+        }
+      } catch (err) {
+        // Silently continue polling
+      }
+    }, 2500);
   }
 
   // Get current status
@@ -79,12 +138,13 @@ class WhatsAppService {
           this.qrCode = await QRCode.toDataURL(qr, { margin: 2, scale: 6 });
           this.status = 'qr_ready';
           this.isInitializing = false;
+          await this.syncToDb();
         } catch (qrErr) {
           console.error('[WhatsApp] QR generation error:', qrErr);
         }
       });
 
-      this.client.on('ready', () => {
+      this.client.on('ready', async () => {
         console.log('[WhatsApp] Client is READY & connected!');
         this.status = 'connected';
         this.isInitializing = false;
@@ -94,27 +154,31 @@ class WhatsAppService {
           wid: this.client.info?.wid?.user || '',
           phone: this.client.info?.wid?.user || ''
         };
+        await this.syncToDb();
       });
 
-      this.client.on('authenticated', () => {
+      this.client.on('authenticated', async () => {
         console.log('[WhatsApp] Authenticated successfully');
         this.status = 'connected';
         this.qrCode = null;
+        await this.syncToDb();
       });
 
-      this.client.on('auth_failure', (msg) => {
+      this.client.on('auth_failure', async (msg) => {
         console.error('[WhatsApp] Authentication failure:', msg);
         this.status = 'disconnected';
         this.isInitializing = false;
         this.lastError = typeof msg === 'string' ? msg : 'Authentication failed';
+        await this.syncToDb();
       });
 
-      this.client.on('disconnected', (reason) => {
+      this.client.on('disconnected', async (reason) => {
         console.log('[WhatsApp] Client disconnected:', reason);
         this.status = 'disconnected';
         this.isInitializing = false;
         this.qrCode = null;
         this.clientInfo = null;
+        await this.syncToDb();
       });
 
       await this.client.initialize();
@@ -123,6 +187,7 @@ class WhatsAppService {
       this.status = 'disconnected';
       this.isInitializing = false;
       this.lastError = err.message;
+      await this.syncToDb();
     }
   }
 
@@ -139,9 +204,11 @@ class WhatsAppService {
       this.clientInfo = null;
       this.isInitializing = false;
       console.log('[WhatsApp] Client disconnected & destroyed');
+      await this.syncToDb();
       return { success: true };
     } catch (err) {
       console.error('[WhatsApp] Disconnect error:', err);
+      await this.syncToDb();
       return { success: false, error: err.message };
     }
   }
