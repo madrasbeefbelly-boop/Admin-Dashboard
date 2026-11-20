@@ -412,202 +412,194 @@ export default function OrdersPage() {
 
         {/* ── RIGHT COLUMN: Order History (7 cols on lg) ── */}
         <div className="lg:col-span-7 space-y-4">
-          <div className="card-premium overflow-hidden">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-              <div className="flex items-center gap-2">
-                <History className="size-4 text-gold" />
-                <h2 className="font-semibold text-base">Order History</h2>
-              </div>
-              {orders.length > 0 && (
-                <Badge variant="outline" className="text-xs">
-                  {orders.length} order{orders.length !== 1 && 's'}
-                </Badge>
-              )}
+          {/* Section Header */}
+          <div className="flex items-center justify-between pb-1">
+            <div className="flex items-center gap-2">
+              <History className="size-5 text-[#e11d48]" />
+              <h2 className="font-display font-bold text-lg text-slate-900">Order History</h2>
             </div>
-
-            {ordersLoading ? (
-              <div className="py-16 text-center text-muted-foreground flex items-center justify-center gap-2">
-                <Loader2 className="size-4 animate-spin text-gold" /> Loading order history…
-              </div>
-            ) : orders.length === 0 ? (
-              <div className="py-16 text-center">
-                <Clock className="mx-auto mb-2 size-8 text-muted-foreground/30" />
-                <p className="text-muted-foreground text-sm">No orders recorded yet</p>
-                <p className="text-xs text-muted-foreground/70 mt-1">
-                  Place an order on the left to see it appear here.
-                </p>
-              </div>
-            ) : (
-              <>
-                <ScrollArea className="max-h-[580px]">
-                  <div className="divide-y divide-border">
-                    {orders.map((order) => (
-                      <div key={order.id} className="p-4 sm:p-5 hover:bg-secondary/15 transition-colors border-b border-border/60 last:border-b-0 space-y-3">
-                        {/* Order Header: Ref & Status on Left | Price & Delete Button on Right */}
-                        <div className="flex items-start justify-between gap-2.5">
-                          <div className="flex items-center gap-2 flex-wrap min-w-0">
-                            <span className="font-mono text-sm font-bold text-slate-900">{order.order_ref}</span>
-
-                            {/* Order Status Badge */}
-                            {(!order.status || order.status === 'New' || order.status === 'Pending') && (
-                              <Badge variant="outline" className="text-[11px] font-semibold text-amber-700 border-amber-300 bg-amber-50">
-                                <Clock className="size-2.5 mr-1" />
-                                Pending
-                              </Badge>
-                            )}
-
-                            {(order.status === 'Served' || order.status === 'Completed' || order.status === 'Ready') && (
-                              <Badge variant="outline" className="text-[11px] font-semibold text-emerald-700 border-emerald-300 bg-emerald-50">
-                                <CheckCircle2 className="size-2.5 mr-1" />
-                                Served
-                              </Badge>
-                            )}
-
-                            {(order.status === 'Canceled' || order.status === 'Cancelled') && (
-                              <Badge variant="outline" className="text-[11px] font-semibold text-rose-700 border-rose-300 bg-rose-50">
-                                <XCircle className="size-2.5 mr-1" />
-                                Canceled
-                              </Badge>
-                            )}
-
-                            {order.inventory_deducted && (
-                              <Badge variant="outline" className="text-[10px] font-medium text-emerald-700 border-emerald-200 bg-emerald-50/80">
-                                ✓ Stock Deducted
-                              </Badge>
-                            )}
-                          </div>
-
-                          {/* Price & Delete Action always visible side-by-side */}
-                          <div className="flex items-center gap-2 shrink-0">
-                            <span className="font-bold text-slate-900 tabular-nums text-base">
-                              {currency.format(Number(order.total_amount))}
-                            </span>
-                            <button
-                              type="button"
-                              className="size-7.5 rounded-lg flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 active:bg-rose-100 transition-colors shrink-0"
-                              onClick={() => handleDeleteOrder(order.id)}
-                              disabled={mockMode}
-                              aria-label="Delete order"
-                              title="Delete order"
-                            >
-                              <Trash2 className="size-4" />
-                            </button>
-                          </div>
-                        </div>
-
-                        {/* Order Timestamp */}
-                        <p className="text-[11px] text-muted-foreground">
-                          {order.created_at ? (
-                            <>
-                              {new Date(order.created_at).toLocaleString('en-IN', {
-                                day: '2-digit',
-                                month: 'short',
-                                year: 'numeric',
-                                hour: '2-digit',
-                                minute: '2-digit',
-                                hour12: true,
-                              })}
-                              {' · '}
-                              {timeAgo(order.created_at)}
-                            </>
-                          ) : (
-                            'Recently placed'
-                          )}
-                        </p>
-
-                        {/* Order Items Breakdown */}
-                        {Array.isArray(order.items) && order.items.length > 0 ? (
-                          <ul className="space-y-1.5 text-xs border-l-2 border-rose-200/60 pl-2.5">
-                            {order.items.map((i: any, idx: number) => (
-                              <li key={idx} className="flex items-center justify-between gap-3 text-muted-foreground">
-                                <span className="flex items-center gap-2 min-w-0">
-                                  {(() => {
-                                    const menuItem = (menuItems || []).find((m: any) => m.id === i.menu_item_id || m.name === i.name);
-                                    const imgUrl = menuItem?.image_url;
-                                    return imgUrl && imgUrl !== '/placeholder.svg' ? (
-                                      <img
-                                        src={imgUrl}
-                                        alt=""
-                                        className="size-6 rounded object-cover shrink-0 border border-border/60"
-                                        onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
-                                      />
-                                    ) : (
-                                      <div className="size-6 rounded bg-rose-50 border border-rose-100 flex items-center justify-center shrink-0">
-                                        <UtensilsCrossed className="size-3 text-rose-400" />
-                                      </div>
-                                    );
-                                  })()}
-                                  <span className="truncate">{i.name}</span>{' '}
-                                  <span className="font-semibold text-foreground shrink-0">×{i.quantity}</span>
-                                </span>
-                                {Number(i.line_total ?? (i.unit_price * i.quantity)) > 0 && (
-                                  <span className="tabular-nums shrink-0">
-                                    ₹{Number(i.line_total ?? (i.unit_price * i.quantity)).toFixed(2)}
-                                  </span>
-                                )}
-                              </li>
-                            ))}
-                          </ul>
-                        ) : (
-                          <p className="text-xs text-muted-foreground">No item breakdown</p>
-                        )}
-
-                        {/* Order Status Action Controls: Exactly 2 buttons (Served and Canceled) */}
-                        <div className="pt-2.5 border-t border-border/50 flex items-center gap-2.5 flex-wrap">
-                          {(!order.status || order.status === 'New' || order.status === 'Pending') ? (
-                            <>
-                              <Button
-                                size="sm"
-                                className="h-8 px-4 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs transition-all"
-                                disabled={mockMode || updatingOrderId === order.id}
-                                onClick={() => handleStatusChange(order, 'Served')}
-                              >
-                                {updatingOrderId === order.id ? (
-                                  <Loader2 className="size-3.5 mr-1.5 animate-spin" />
-                                ) : (
-                                  <CheckCircle2 className="size-3.5 mr-1.5" />
-                                )}
-                                Served
-                              </Button>
-
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-8 px-3 border-rose-200 text-rose-600 hover:text-rose-700 hover:bg-rose-50 text-xs font-semibold shadow-xs"
-                                disabled={mockMode || updatingOrderId === order.id}
-                                onClick={() => handleStatusChange(order, 'Canceled')}
-                              >
-                                <XCircle className="size-3.5 mr-1.5" />
-                                Canceled
-                              </Button>
-                            </>
-                          ) : (
-                            <span className="text-[11px] font-medium flex items-center gap-1.5">
-                              {order.status === 'Canceled' || order.status === 'Cancelled' ? (
-                                <span className="text-rose-600 font-semibold">
-                                  {order.cancellation_reason ? `Canceled: ${order.cancellation_reason}` : 'Order was canceled'}
-                                </span>
-                              ) : (
-                                <span className="text-emerald-700 font-semibold flex items-center gap-1">
-                                  <CheckCircle2 className="size-3 text-emerald-600" /> Fulfilled &amp; Served
-                                </span>
-                              )}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </ScrollArea>
-                <div className="px-5 py-3.5 border-t border-border flex items-center justify-between text-sm bg-secondary/10">
-                  <span className="text-muted-foreground">{orders.length} order{orders.length !== 1 && 's'} total</span>
-                  <span className="font-semibold text-gold tabular-nums">
-                    {currency.format(orders.reduce((s, o) => s + (Number(o.total_amount) || 0), 0))} total revenue
-                  </span>
-                </div>
-              </>
+            {orders.length > 0 && (
+              <Badge variant="outline" className="text-xs font-semibold px-2.5 py-0.5 rounded-lg border-slate-200 bg-white shadow-2xs">
+                {orders.length} order{orders.length !== 1 && 's'}
+              </Badge>
             )}
           </div>
+
+          {ordersLoading ? (
+            <div className="card-premium py-16 text-center text-muted-foreground flex items-center justify-center gap-2">
+              <Loader2 className="size-4 animate-spin text-[#e11d48]" /> Loading order history…
+            </div>
+          ) : orders.length === 0 ? (
+            <div className="card-premium py-16 text-center">
+              <Clock className="mx-auto mb-2 size-8 text-muted-foreground/30" />
+              <p className="text-muted-foreground text-sm font-medium">No orders recorded yet</p>
+              <p className="text-xs text-muted-foreground/70 mt-1">
+                Place an order on the left to see it appear here.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3.5">
+              {orders.map((order) => (
+                <div
+                  key={order.id}
+                  className="card-premium p-4 sm:p-5 rounded-2xl shadow-xs hover:border-[#e11d48]/40 hover:shadow-md transition-all space-y-3"
+                >
+                  {/* Order Header: Ref & Status on Left | Price & Delete Button on Right */}
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-2 flex-wrap min-w-0">
+                      <span className="font-mono text-sm font-bold text-slate-900">{order.order_ref}</span>
+
+                      {/* Order Status Badge */}
+                      {(!order.status || order.status === 'New' || order.status === 'Pending') && (
+                        <Badge variant="outline" className="text-[11px] font-semibold text-amber-700 border-amber-300 bg-amber-50">
+                          <Clock className="size-2.5 mr-1" />
+                          Pending
+                        </Badge>
+                      )}
+
+                      {(order.status === 'Served' || order.status === 'Completed' || order.status === 'Ready') && (
+                        <Badge variant="outline" className="text-[11px] font-semibold text-emerald-700 border-emerald-300 bg-emerald-50">
+                          <CheckCircle2 className="size-2.5 mr-1" />
+                          Served
+                        </Badge>
+                      )}
+
+                      {(order.status === 'Canceled' || order.status === 'Cancelled') && (
+                        <Badge variant="outline" className="text-[11px] font-semibold text-rose-700 border-rose-300 bg-rose-50">
+                          <XCircle className="size-2.5 mr-1" />
+                          Canceled
+                        </Badge>
+                      )}
+
+                      {order.inventory_deducted && (
+                        <Badge variant="outline" className="text-[10px] font-medium text-emerald-700 border-emerald-200 bg-emerald-50/80">
+                          ✓ Stock Deducted
+                        </Badge>
+                      )}
+                    </div>
+
+                    {/* Price & Delete Action always visible side-by-side */}
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="font-bold text-slate-900 tabular-nums text-base">
+                        {currency.format(Number(order.total_amount))}
+                      </span>
+                      <button
+                        type="button"
+                        className="size-7.5 rounded-lg flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 active:bg-rose-100 transition-colors shrink-0"
+                        onClick={() => handleDeleteOrder(order.id)}
+                        disabled={mockMode}
+                        aria-label="Delete order"
+                        title="Delete order"
+                      >
+                        <Trash2 className="size-4" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Order Timestamp */}
+                  <p className="text-[11px] text-muted-foreground">
+                    {order.created_at ? (
+                      <>
+                        {new Date(order.created_at).toLocaleString('en-IN', {
+                          day: '2-digit',
+                          month: 'short',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                          hour12: true,
+                        })}
+                        {' · '}
+                        {timeAgo(order.created_at)}
+                      </>
+                    ) : (
+                      'Recently placed'
+                    )}
+                  </p>
+
+                  {/* Order Items Breakdown */}
+                  {Array.isArray(order.items) && order.items.length > 0 ? (
+                    <ul className="space-y-1.5 text-xs border-l-2 border-rose-200/60 pl-2.5">
+                      {order.items.map((i: any, idx: number) => (
+                        <li key={idx} className="flex items-center justify-between gap-3 text-muted-foreground">
+                          <span className="flex items-center gap-2 min-w-0">
+                            {(() => {
+                              const menuItem = (menuItems || []).find((m: any) => m.id === i.menu_item_id || m.name === i.name);
+                              const imgUrl = menuItem?.image_url;
+                              return imgUrl && imgUrl !== '/placeholder.svg' ? (
+                                <img
+                                  src={imgUrl}
+                                  alt=""
+                                  className="size-6 rounded object-cover shrink-0 border border-border/60"
+                                  onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
+                                />
+                              ) : (
+                                <div className="size-6 rounded bg-rose-50 border border-rose-100 flex items-center justify-center shrink-0">
+                                  <UtensilsCrossed className="size-3 text-rose-400" />
+                                </div>
+                              );
+                            })()}
+                            <span className="truncate">{i.name}</span>{' '}
+                            <span className="font-semibold text-foreground shrink-0">×{i.quantity}</span>
+                          </span>
+                          {Number(i.line_total ?? (i.unit_price * i.quantity)) > 0 && (
+                            <span className="tabular-nums shrink-0">
+                              ₹{Number(i.line_total ?? (i.unit_price * i.quantity)).toFixed(2)}
+                            </span>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">No item breakdown</p>
+                  )}
+
+                  {/* Order Status Action Controls: Exactly 2 buttons (Served and Canceled) */}
+                  <div className="pt-2.5 border-t border-border/50 flex items-center gap-2.5 flex-wrap">
+                    {(!order.status || order.status === 'New' || order.status === 'Pending') ? (
+                      <>
+                        <Button
+                          size="sm"
+                          className="h-8 px-4 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs transition-all"
+                          disabled={mockMode || updatingOrderId === order.id}
+                          onClick={() => handleStatusChange(order, 'Served')}
+                        >
+                          {updatingOrderId === order.id ? (
+                            <Loader2 className="size-3.5 mr-1.5 animate-spin" />
+                          ) : (
+                            <CheckCircle2 className="size-3.5 mr-1.5" />
+                          )}
+                          Served
+                        </Button>
+
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 px-3 border-rose-200 text-rose-600 hover:text-rose-700 hover:bg-rose-50 text-xs font-semibold shadow-xs"
+                          disabled={mockMode || updatingOrderId === order.id}
+                          onClick={() => handleStatusChange(order, 'Canceled')}
+                        >
+                          <XCircle className="size-3.5 mr-1.5" />
+                          Canceled
+                        </Button>
+                      </>
+                    ) : (
+                      <span className="text-[11px] font-medium flex items-center gap-1.5">
+                        {order.status === 'Canceled' || order.status === 'Cancelled' ? (
+                          <span className="text-rose-600 font-semibold">
+                            {order.cancellation_reason ? `Canceled: ${order.cancellation_reason}` : 'Order was canceled'}
+                          </span>
+                        ) : (
+                          <span className="text-emerald-700 font-semibold flex items-center gap-1">
+                            <CheckCircle2 className="size-3 text-emerald-600" /> Fulfilled &amp; Served
+                          </span>
+                        )}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 

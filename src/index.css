@@ -18,7 +18,7 @@
   --color-background: #fafafb;
   --color-foreground: #0f172a;
 
-  --color-card: #eef0f2;
+  --color-card: #dde2e7;
   --color-card-foreground: #0f172a;
 
   --color-popover: var(--color-card);
@@ -52,8 +52,8 @@
   --color-destructive: #ef4444;
   --color-destructive-foreground: #ffffff;
 
-  --color-border: #f1f5f9;
-  --color-input: #e2e8f0;
+  --color-border: #e2e8f0;
+  --color-input: #cbd5e1;
   --color-ring: #e11d48;
 
   /* Sidebar Colors */
