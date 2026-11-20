@@ -101,13 +101,42 @@ export function AnalyticsCharts({ summaryCards }: { summaryCards: ReactNode }) {
     return months;
   }, [servedOrders, purchases, timeFilter]);
 
-  // Max value for Revenue Y-Axis
-  const maxRevenueVal = useMemo(() => {
+  // Max value and ticks for Revenue Y-Axis (1k, 5k, 10k, 20k, 30k, 40k, 50k scale)
+  const revenueYAxis = useMemo(() => {
     const highest = Math.max(
-      ...revenueChartData.map((d) => Math.max(d.income, d.expense)),
+      ...revenueChartData.map((d) => Math.max(d.income || 0, d.expense || 0)),
       0
     );
-    return highest > 0 ? Math.ceil(highest * 1.2) : 1000;
+
+    if (highest <= 1000) {
+      return { domain: [0, 1000] as [number, number], ticks: [0, 500, 1000] };
+    }
+    if (highest <= 5000) {
+      return { domain: [0, 5000] as [number, number], ticks: [0, 1000, 2500, 5000] };
+    }
+    if (highest <= 10000) {
+      return { domain: [0, 10000] as [number, number], ticks: [0, 1000, 5000, 10000] };
+    }
+    if (highest <= 20000) {
+      return { domain: [0, 20000] as [number, number], ticks: [0, 1000, 5000, 10000, 20000] };
+    }
+    if (highest <= 30000) {
+      return { domain: [0, 30000] as [number, number], ticks: [0, 5000, 10000, 20000, 30000] };
+    }
+    if (highest <= 40000) {
+      return { domain: [0, 40000] as [number, number], ticks: [0, 10000, 20000, 30000, 40000] };
+    }
+    if (highest <= 50000) {
+      return { domain: [0, 50000] as [number, number], ticks: [0, 10000, 20000, 30000, 40000, 50000] };
+    }
+
+    const step = highest <= 100000 ? 20000 : 50000;
+    const max = Math.ceil(highest / step) * step;
+    const ticks = [0];
+    for (let t = step; t <= max; t += step) {
+      ticks.push(t);
+    }
+    return { domain: [0, max] as [number, number], ticks };
   }, [revenueChartData]);
 
   return (
@@ -115,8 +144,8 @@ export function AnalyticsCharts({ summaryCards }: { summaryCards: ReactNode }) {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         
         {/* ── REVENUE WAVE CHART (Top on mobile, 2nd on desktop) ── */}
-        <div className="order-1 md:order-2 lg:col-span-7 card-premium p-6 flex flex-col justify-between">
-          <div>
+        <div className="order-1 md:order-2 lg:col-span-7 card-premium p-4 sm:p-6 flex flex-col justify-between overflow-hidden">
+          <div className="px-1 sm:px-0">
             {/* Header: Title + Filter Toggle */}
             <div className="flex items-start justify-between gap-4 mb-4">
               <div>
@@ -161,12 +190,12 @@ export function AnalyticsCharts({ summaryCards }: { summaryCards: ReactNode }) {
             </div>
           </div>
 
-          {/* Layered Multi-Wave Area Chart */}
-          <div className="h-64 sm:h-72 w-full pt-2">
+          {/* Layered Multi-Wave Area Chart - Edge-to-edge wide graph */}
+          <div className="h-64 sm:h-72 w-full pt-2 -ml-3 sm:-ml-2">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart
                 data={revenueChartData}
-                margin={{ top: 15, right: 10, left: -10, bottom: 0 }}
+                margin={{ top: 15, right: 4, left: -24, bottom: 0 }}
               >
                 <defs>
                   {/* Purple/Violet Gradient (Expenses) */}
@@ -184,7 +213,8 @@ export function AnalyticsCharts({ summaryCards }: { summaryCards: ReactNode }) {
                 <CartesianGrid
                   strokeDasharray="0 0"
                   vertical={false}
-                  stroke="#f1f5f9"
+                  stroke="#cbd5e1"
+                  strokeOpacity={0.5}
                   strokeWidth={1}
                 />
 
@@ -199,9 +229,11 @@ export function AnalyticsCharts({ summaryCards }: { summaryCards: ReactNode }) {
                 <YAxis
                   tickLine={false}
                   axisLine={false}
-                  domain={[0, maxRevenueVal]}
-                  tick={{ fontSize: 11, fill: '#94a3b8', fontWeight: 500 }}
-                  tickFormatter={(val) => (val >= 1000 ? `₹${val / 1000}k` : `₹${val}`)}
+                  width={32}
+                  ticks={revenueYAxis.ticks}
+                  domain={revenueYAxis.domain}
+                  tick={{ fontSize: 10, fill: '#94a3b8', fontWeight: 600 }}
+                  tickFormatter={(val) => (val === 0 ? '0' : val >= 1000 ? `${val / 1000}k` : `${val}`)}
                 />
 
                 <Tooltip
