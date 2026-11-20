@@ -254,7 +254,6 @@ export default function OrdersPage() {
                 ) : (
                   availableItems.map((item) => {
                     const price = formatPrice(item.selling_price);
-                    const isOutOfStock = item.is_in_stock === false || item.servings_available === 0;
                     return (
                       <SelectItem key={item.id} value={item.id}>
                         <span className="flex items-center gap-2.5 w-full">
@@ -271,18 +270,6 @@ export default function OrdersPage() {
                             </div>
                           )}
                           <span className="truncate">{item.name}</span>
-                          {item.ingredients && item.ingredients.length > 0 && (
-                            <span className={cn(
-                              'text-[10px] px-1.5 py-0.5 rounded font-semibold shrink-0 ml-1',
-                              isOutOfStock
-                                ? 'bg-rose-100 text-rose-700'
-                                : (item.servings_available ?? 0) <= 5
-                                ? 'bg-amber-100 text-amber-700'
-                                : 'bg-emerald-100 text-emerald-700'
-                            )}>
-                              {isOutOfStock ? '0 stock' : `${item.servings_available} in stock`}
-                            </span>
-                          )}
                           <span className="text-muted-foreground tabular-nums ml-auto shrink-0 pl-2">
                             {price != null ? `₹${price.toFixed(0)}` : '—'}
                           </span>
