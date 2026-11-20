@@ -108,20 +108,14 @@ export function AnalyticsCharts({ summaryCards }: { summaryCards: ReactNode }) {
       0
     );
 
-    if (highest <= 1000) {
-      return { domain: [0, 1000] as [number, number], ticks: [0, 500, 1000] };
-    }
-    if (highest <= 5000) {
-      return { domain: [0, 5000] as [number, number], ticks: [0, 1000, 2500, 5000] };
-    }
     if (highest <= 10000) {
       return { domain: [0, 10000] as [number, number], ticks: [0, 1000, 5000, 10000] };
     }
     if (highest <= 20000) {
-      return { domain: [0, 20000] as [number, number], ticks: [0, 1000, 5000, 10000, 20000] };
+      return { domain: [0, 20000] as [number, number], ticks: [0, 5000, 10000, 20000] };
     }
     if (highest <= 30000) {
-      return { domain: [0, 30000] as [number, number], ticks: [0, 5000, 10000, 20000, 30000] };
+      return { domain: [0, 30000] as [number, number], ticks: [0, 10000, 20000, 30000] };
     }
     if (highest <= 40000) {
       return { domain: [0, 40000] as [number, number], ticks: [0, 10000, 20000, 30000, 40000] };
@@ -191,11 +185,11 @@ export function AnalyticsCharts({ summaryCards }: { summaryCards: ReactNode }) {
           </div>
 
           {/* Layered Multi-Wave Area Chart - Edge-to-edge wide graph */}
-          <div className="h-64 sm:h-72 w-full pt-2 -ml-3 sm:-ml-2">
+          <div className="h-64 sm:h-72 w-full pt-2">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart
                 data={revenueChartData}
-                margin={{ top: 15, right: 4, left: -24, bottom: 0 }}
+                margin={{ top: 15, right: 8, left: 0, bottom: 0 }}
               >
                 <defs>
                   {/* Purple/Violet Gradient (Expenses) */}
@@ -229,10 +223,11 @@ export function AnalyticsCharts({ summaryCards }: { summaryCards: ReactNode }) {
                 <YAxis
                   tickLine={false}
                   axisLine={false}
-                  width={32}
+                  width={38}
+                  tickMargin={4}
                   ticks={revenueYAxis.ticks}
                   domain={revenueYAxis.domain}
-                  tick={{ fontSize: 10, fill: '#94a3b8', fontWeight: 600 }}
+                  tick={{ fontSize: 11, fill: '#94a3b8', fontWeight: 600 }}
                   tickFormatter={(val) => (val === 0 ? '0' : val >= 1000 ? `${val / 1000}k` : `${val}`)}
                 />
 
