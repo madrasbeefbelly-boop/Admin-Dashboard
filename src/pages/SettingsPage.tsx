@@ -73,7 +73,7 @@ export default function SettingsPage() {
 
   if (isLoading) {
     return (
-      <DashboardLayout title="Settings" subtitle="Manage your business preferences" hideMobileSubtitle>
+      <DashboardLayout title="Settings" subtitle="Manage your business preferences">
         <div className="flex items-center justify-center h-64">
           <Loader2 className="w-8 h-8 animate-spin text-gold" />
         </div>
@@ -82,7 +82,7 @@ export default function SettingsPage() {
   }
 
   return (
-    <DashboardLayout title="Settings" subtitle="Manage your business preferences" hideMobileSubtitle>
+    <DashboardLayout title="Settings" subtitle="Manage your business preferences">
       <div className="max-w-3xl">
         {/* Business Info */}
         <div className="card-premium p-6 mb-6">

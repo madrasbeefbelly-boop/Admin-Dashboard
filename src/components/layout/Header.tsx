@@ -14,6 +14,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useProfile } from '@/hooks/api';
+import { businessName } from '@/brand';
 import { useNotifications } from '@/hooks/use-notifications';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
@@ -24,10 +25,9 @@ import { cn } from '@/lib/utils';
 interface HeaderProps {
   title: string;
   subtitle?: string;
-  hideMobileSubtitle?: boolean;
 }
 
-export function Header({ title, subtitle, hideMobileSubtitle }: HeaderProps) {
+export function Header({ title, subtitle }: HeaderProps) {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const [showNotifications, setShowNotifications] = useState(false);
@@ -66,29 +66,22 @@ export function Header({ title, subtitle, hideMobileSubtitle }: HeaderProps) {
 
   return (
     <header className="sticky top-0 z-20 bg-[#fafafb]/90 backdrop-blur-md border-b border-slate-100">
-      <div className="mx-auto flex max-w-[96rem] items-center justify-between gap-4 px-4 py-3.5 sm:px-6 xl:px-8">
-        {/* Title area */}
-        <div className="flex min-w-0 items-center gap-3">
-          <div className="min-w-0">
-            <h1 className="font-display text-xl sm:text-2xl font-bold tracking-tight text-slate-900">
-              {title}
-            </h1>
-            {subtitle && (
-              <p
-                className={
-                  hideMobileSubtitle
-                    ? 'hidden text-xs text-slate-400 md:block mt-0.5'
-                    : 'text-xs text-slate-400 mt-0.5'
-                }
-              >
-                {subtitle}
-              </p>
-            )}
-          </div>
+      <div className="mx-auto grid max-w-[96rem] grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 gap-y-0.5 px-4 py-2.5 sm:px-6 md:flex md:justify-between md:gap-4 md:py-3.5 xl:px-8">
+        <div className="col-start-1 row-start-1 flex min-w-0 items-center gap-2 md:hidden">
+          <img src="/brand/Bull-logo.png" alt="" width={32} height={32}
+            className="size-8 shrink-0 rounded-lg bg-black object-contain" />
+          <span className="text-[13px] font-semibold leading-tight text-slate-900">{businessName}</span>
+        </div>
+
+        <div className="col-span-2 row-start-2 min-w-0">
+          <h1 className="font-display text-xl font-bold tracking-tight text-slate-900 max-md:leading-tight sm:text-2xl">
+            {title}
+          </h1>
+          {subtitle && <p className="mt-0.5 hidden text-xs text-slate-400 md:block">{subtitle}</p>}
         </div>
 
         {/* Right utility icons with real data counters only */}
-        <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+        <div className="col-start-2 row-start-1 flex shrink-0 items-center gap-2 sm:gap-3">
           <nav aria-label="Dashboard shortcuts" className="flex items-center gap-0.5 md:gap-1">
             {dashboardNavigation.map(({ name, href, icon: Icon, headerVisibility }) => (
               <NavLink

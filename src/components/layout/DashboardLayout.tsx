@@ -8,10 +8,9 @@ interface DashboardLayoutProps {
   children: ReactNode;
   title: string;
   subtitle?: string;
-  hideMobileSubtitle?: boolean;
 }
 
-export function DashboardLayout({ children, title, subtitle, hideMobileSubtitle }: DashboardLayoutProps) {
+export function DashboardLayout({ children, title, subtitle }: DashboardLayoutProps) {
   const [collapsed, setCollapsed] = useState(false);
 
   return (
@@ -23,7 +22,7 @@ export function DashboardLayout({ children, title, subtitle, hideMobileSubtitle 
     >
       <Sidebar collapsed={collapsed} onToggle={() => setCollapsed((value) => !value)} />
       <div className="min-w-0 flex flex-col min-h-dvh bg-[#fafafb]">
-        <Header title={title} subtitle={subtitle} hideMobileSubtitle={hideMobileSubtitle} />
+        <Header title={title} subtitle={subtitle} />
         <main className="mx-auto w-full max-w-[96rem] flex-1 px-4 pt-4 pb-[calc(5rem+env(safe-area-inset-bottom))] sm:px-6 sm:pt-6 md:pb-6 xl:p-8">
           {children}
         </main>
