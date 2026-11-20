@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { StatCard } from '@/components/dashboard/StatCard';
 import { purchaseAmount, purchaseDay, statSeries } from '@/lib/stat-series';
+import { isMockMode } from '@/lib/mock-mode';
 import { usePurchases, useCreatePurchase, useInventory, useSuppliers, useCreateSupplier, useDeletePurchase, useDeleteSupplier } from '@/hooks/api';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -291,7 +292,7 @@ export default function PurchasesPage() {
             <Button
               className="bg-gold hover:bg-gold-light"
               onClick={handleLogPurchase}
-              disabled={createPurchase.isPending || !selectedItem || inventory.isError}
+              disabled={isMockMode() || createPurchase.isPending || !selectedItem || inventory.isError}
             >
               {createPurchase.isPending ? (
                 <>
@@ -365,7 +366,7 @@ export default function PurchasesPage() {
             <Button
               className="bg-gold hover:bg-gold-light"
               onClick={handleAddSupplier}
-              disabled={createSupplier.isPending}
+              disabled={isMockMode() || createSupplier.isPending}
             >
               {createSupplier.isPending ? (
                 <>
@@ -444,7 +445,7 @@ export default function PurchasesPage() {
                       variant="ghost"
                       size="sm"
                       onClick={() => handleDeletePurchase(purchase.id)}
-                      disabled={deletePurchase.isPending}
+                      disabled={isMockMode() || deletePurchase.isPending}
                       className="text-destructive hover:text-destructive hover:bg-destructive/10"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -486,7 +487,7 @@ export default function PurchasesPage() {
                   variant="ghost"
                   size="sm"
                   onClick={() => handleDeleteSupplier(supplier.id)}
-                  disabled={deleteSupplier.isPending}
+                  disabled={isMockMode() || deleteSupplier.isPending}
                   className="text-destructive hover:text-destructive hover:bg-destructive/10"
                 >
                   <Trash2 className="w-4 h-4" />

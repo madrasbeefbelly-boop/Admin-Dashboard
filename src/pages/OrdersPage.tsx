@@ -19,6 +19,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
+import { isMockMode } from '@/lib/mock-mode';
 import {
   Plus,
   Minus,
@@ -62,6 +63,7 @@ function timeAgo(dateStr: string) {
 }
 
 export default function OrdersPage() {
+  const mockMode = isMockMode();
   const { data: menuItems = [], isLoading: menuLoading, error: menuError, refetch: menuRefetch } = useMenuItems();
   const { data: orders = [], isLoading: ordersLoading, refetch: ordersRefetch } = useOrders();
   const createOrder = useCreateOrder();
@@ -381,7 +383,7 @@ export default function OrdersPage() {
               </div>
               <Button
                 className="w-full bg-gold hover:bg-gold-light text-primary-foreground font-semibold"
-                disabled={cart.length === 0 || createOrder.isPending}
+                disabled={mockMode || cart.length === 0 || createOrder.isPending}
                 onClick={handlePlaceOrder}
               >
                 {createOrder.isPending ? (
@@ -536,7 +538,7 @@ export default function OrdersPage() {
                                 <Button
                                   size="sm"
                                   className="h-8 px-4 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs transition-all"
-                                  disabled={updatingOrderId === order.id}
+                                  disabled={mockMode || updatingOrderId === order.id}
                                   onClick={() => handleStatusChange(order, 'Served')}
                                 >
                                   {updatingOrderId === order.id ? (
@@ -551,7 +553,7 @@ export default function OrdersPage() {
                                   size="sm"
                                   variant="outline"
                                   className="h-8 px-3 border-rose-200 text-rose-600 hover:text-rose-700 hover:bg-rose-50 text-xs font-semibold shadow-xs"
-                                  disabled={updatingOrderId === order.id}
+                                  disabled={mockMode || updatingOrderId === order.id}
                                   onClick={() => handleStatusChange(order, 'Canceled')}
                                 >
                                   <XCircle className="size-3.5 mr-1.5" />
@@ -581,6 +583,7 @@ export default function OrdersPage() {
                         <button
                           className="size-7 rounded flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 shrink-0 mt-0.5"
                           onClick={() => handleDeleteOrder(order.id)}
+                          disabled={mockMode}
                           aria-label="Delete order"
                           title="Delete order"
                         >

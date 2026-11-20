@@ -9,6 +9,7 @@ import { Switch } from '@/components/ui/switch';
 import { Building2, Bell, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useProfile, useUpdateProfile } from '@/hooks/api';
+import { isMockMode } from '@/lib/mock-mode';
 
 export default function SettingsPage() {
   const [formData, setFormData] = useState({
@@ -197,7 +198,7 @@ export default function SettingsPage() {
           <Button
             className="bg-gold hover:bg-gold-light text-primary-foreground"
             onClick={handleSave}
-            disabled={saving}
+            disabled={isMockMode() || saving}
           >
             {saving ? (
               <>

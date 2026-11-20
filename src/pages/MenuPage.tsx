@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { StatCard } from '@/components/dashboard/StatCard';
 import { statSeries } from '@/lib/stat-series';
+import { isMockMode } from '@/lib/mock-mode';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -457,7 +458,7 @@ export default function MenuPage() {
               className="bg-[#e11d48] hover:bg-[#be123c] text-white"
               form="dish-form"
               type="submit"
-              disabled={isSaving}
+              disabled={isMockMode() || isSaving}
             >
               {isSaving ? (
                 <>
@@ -520,6 +521,7 @@ export default function MenuPage() {
                       size="icon"
                       className="size-7 rounded-md hover:bg-rose-50"
                       onClick={() => handleDeleteDish(item.id)}
+                      disabled={isMockMode()}
                     >
                       <Trash2 className="size-3.5 text-rose-500" />
                     </Button>
@@ -687,6 +689,7 @@ export default function MenuPage() {
                     className="size-10 rounded-xl border-rose-200 text-rose-500 hover:text-rose-700 hover:bg-rose-50 shadow-xs"
                     aria-label={'Delete ' + item.name}
                     onClick={() => handleDeleteDish(item.id)}
+                    disabled={isMockMode()}
                   >
                     <Trash2 className="size-4" />
                   </Button>

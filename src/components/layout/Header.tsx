@@ -5,6 +5,7 @@ import {
   Settings,
   LogOut,
   Loader2,
+  FlaskConical,
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -21,6 +22,7 @@ import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
 import { dashboardNavigation } from './navigation';
 import { cn } from '@/lib/utils';
+import { isMockMode, switchMockMode } from '@/lib/mock-mode';
 
 interface HeaderProps {
   title: string;
@@ -31,6 +33,7 @@ export function Header({ title, subtitle }: HeaderProps) {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const [showNotifications, setShowNotifications] = useState(false);
+  const mockMode = isMockMode();
 
   // API hooks
   const { data: profile, isLoading: profileLoading } = useProfile();
@@ -47,7 +50,7 @@ export function Header({ title, subtitle }: HeaderProps) {
   };
 
   const handleNotificationClick = (notification: any) => {
-    if (!notification.is_read) {
+    if (!mockMode && !notification.is_read) {
       markAsRead(notification.id);
     }
     if (notification.reference_type === 'Inventory') navigate('/inventory');
@@ -143,7 +146,7 @@ export function Header({ title, subtitle }: HeaderProps) {
               </DropdownMenuItem>
               {showNotifications && (
                 <div className="border-b border-border bg-muted/60">
-                  {unreadCount > 0 && (
+                  {unreadCount > 0 && !mockMode && (
                     <DropdownMenuItem onSelect={(event) => {
                       event.preventDefault();
                       markAllAsRead();
@@ -178,6 +181,10 @@ export function Header({ title, subtitle }: HeaderProps) {
                 <Settings className="size-4 mr-2" />
                 <span>Settings</span>
               </DropdownMenuItem>
+              <DropdownMenuItem onSelect={switchMockMode} className="cursor-pointer">
+                <FlaskConical className="mr-2 size-4" aria-hidden="true" />
+                {mockMode ? 'Exit Mock Mode' : 'Enter Mock Mode'}
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={handleLogout} className="cursor-pointer text-destructive">
                 <LogOut className="size-4 mr-2" />
@@ -187,6 +194,12 @@ export function Header({ title, subtitle }: HeaderProps) {
           </DropdownMenu>
         </div>
       </div>
+      {mockMode && (
+        <div className="flex items-center justify-between gap-3 border-t border-amber-200 bg-amber-50 px-3 py-1 text-xs text-amber-950 sm:px-6">
+          <span><strong>Mock Mode</strong> · Sample data, read-only</span>
+          <button type="button" onClick={switchMockMode} className="min-h-9 shrink-0 font-semibold underline underline-offset-4">Exit</button>
+        </div>
+      )}
     </header>
   );
 }

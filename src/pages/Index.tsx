@@ -124,7 +124,6 @@ export default function Index() {
             />
           </div>
 
-          {/* ── MIDDLE ANALYTICS (REVENUE WAVE + CUSTOMER MAP + TOP 3 SELLING) ── */}
           <AnalyticsCharts />
 
           {/* ── BOTTOM LOW STOCK STATUS ── */}

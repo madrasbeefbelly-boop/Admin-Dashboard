@@ -1,6 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useState } from 'react';
 import config from '@/config';
+import { clearMockMode } from '@/lib/mock-mode';
 
 interface User {
   id: string;
@@ -29,6 +30,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   });
 
   const login = (userData: User) => {
+    clearMockMode();
     setUser(userData);
     localStorage.setItem('user', JSON.stringify(userData));
     // Token is stored in HTTP-only cookie by backend
@@ -44,6 +46,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.error('Logout error:', error);
     }
 
+    clearMockMode();
     setUser(null);
     localStorage.removeItem('user');
     // Token is cleared by backend (HTTP-only cookie)

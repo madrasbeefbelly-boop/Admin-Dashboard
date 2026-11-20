@@ -3,19 +3,18 @@ import {
   ResponsiveContainer,
   AreaChart,
   Area,
-  BarChart,
-  Bar,
   XAxis,
   YAxis,
   Tooltip,
   CartesianGrid,
-  ReferenceLine,
 } from 'recharts';
 import { Badge } from '@/components/ui/badge';
-import { useOrders, usePurchases } from '@/hooks/api';
+import { useMenuItems, useOrders, usePurchases } from '@/hooks/api';
 import { Award, Utensils, ArrowUpRight, ChevronDown } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { isServedOrder } from '@/lib/utils';
+import { FoodMap } from './FoodMap';
+import { summarizeFoodSales } from '@/lib/food-sales';
 
 const currency = new Intl.NumberFormat('en-IN', {
   style: 'currency',
@@ -26,10 +25,10 @@ const currency = new Intl.NumberFormat('en-IN', {
 export function AnalyticsCharts() {
   const { data: orders = [] } = useOrders();
   const { data: purchases = [] } = usePurchases();
+  const { data: menu = [] } = useMenuItems();
   const servedOrders = useMemo(() => orders.filter(isServedOrder), [orders]);
 
   const [timeFilter, setTimeFilter] = useState<'Monthly' | 'Weekly'>('Monthly');
-  const [customerFilter, setCustomerFilter] = useState<'Monthly' | 'Weekly'>('Monthly');
 
   // Actual live Total Sales from orders
   const actualSales = useMemo(() => {
@@ -44,36 +43,7 @@ export function AnalyticsCharts() {
     );
   }, [purchases]);
 
-  // Aggregate Top 3 Selling Foods from real order items
-  const top3Selling = useMemo(() => {
-    const itemMap: Record<
-      string,
-      { name: string; quantity: number; revenue: number; category: string }
-    > = {};
-
-    for (const order of servedOrders) {
-      if (!Array.isArray(order.items)) continue;
-      for (const item of order.items) {
-        if (!item.name) continue;
-        if (!itemMap[item.name]) {
-          itemMap[item.name] = {
-            name: item.name,
-            quantity: 0,
-            revenue: 0,
-            category: item.category || 'Dishes',
-          };
-        }
-        const qty = Number(item.quantity) || 1;
-        itemMap[item.name].quantity += qty;
-        itemMap[item.name].revenue +=
-          Number(item.line_total) || (Number(item.unit_price) || 0) * qty;
-      }
-    }
-
-    return Object.values(itemMap)
-      .sort((a, b) => b.quantity - a.quantity)
-      .slice(0, 3);
-  }, [servedOrders]);
+  const top3Selling = useMemo(() => summarizeFoodSales(servedOrders).slice(0, 3), [servedOrders]);
 
   const maxQuantity = top3Selling[0]?.quantity || 1;
 
@@ -147,72 +117,6 @@ export function AnalyticsCharts() {
     return highest > 0 ? Math.ceil(highest * 1.2) : 1000;
   }, [revenueChartData]);
 
-  // Real Customer Map / Order Volume Activity
-  const customerMapChartData = useMemo(() => {
-    if (customerFilter === 'Weekly') {
-      const days = [];
-      for (let i = 6; i >= 0; i--) {
-        const d = new Date();
-        d.setDate(d.getDate() - i);
-        const key = d.toISOString().split('T')[0];
-        const label = d.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric' });
-        days.push({ key, label, positive: 0, negative: 0 });
-      }
-
-      for (const o of orders) {
-        if (!o.created_at) continue;
-        const key = new Date(o.created_at).toISOString().split('T')[0];
-        const match = days.find((day) => day.key === key);
-        if (match) {
-          if (o.status === 'Canceled' || o.status === 'Cancelled') {
-            match.negative -= 1;
-          } else {
-            match.positive += 1;
-          }
-        }
-      }
-
-      return days;
-    }
-
-    // Past 6 Months
-    const months = [];
-    const now = new Date();
-    for (let i = 5; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      const label = d.toLocaleDateString('en-IN', { month: 'short' });
-      months.push({ key, label, positive: 0, negative: 0 });
-    }
-
-    for (const o of orders) {
-      if (!o.created_at) continue;
-      const d = new Date(o.created_at);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      const match = months.find((m) => m.key === key);
-      if (match) {
-        if (o.status === 'Canceled' || o.status === 'Cancelled') {
-          match.negative -= 1;
-        } else {
-          match.positive += 1;
-        }
-      }
-    }
-
-    return months;
-  }, [orders, customerFilter]);
-
-  // Max value for Customer Activity Y-Axis
-  const maxActivityVal = useMemo(() => {
-    const highest = Math.max(...customerMapChartData.map((d) => d.positive), 0);
-    return highest > 0 ? Math.ceil(highest * 1.25) : 5;
-  }, [customerMapChartData]);
-
-  const minActivityVal = useMemo(() => {
-    const lowest = Math.min(...customerMapChartData.map((d) => d.negative), 0);
-    return lowest < 0 ? lowest : 0;
-  }, [customerMapChartData]);
-
   const rankBadges = [
     { label: '#1', color: 'bg-amber-500/10 text-amber-600 border-amber-500/30' },
     { label: '#2', color: 'bg-slate-500/10 text-slate-600 border-slate-500/30' },
@@ -221,7 +125,6 @@ export function AnalyticsCharts() {
 
   return (
     <div className="space-y-6 mb-8">
-      {/* ── ROW 1: KOKI DUAL CHARTS (REVENUE + CUSTOMER MAP) ── */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         
         {/* ── LEFT: REVENUE WAVE CHART (7 cols on lg) ── */}
@@ -363,109 +266,7 @@ export function AnalyticsCharts() {
           </div>
         </div>
 
-        {/* ── RIGHT: CUSTOMER MAP SPLIT BAR CHART (5 cols on lg) ── */}
-        <div className="lg:col-span-5 card-premium p-6 flex flex-col justify-between">
-          <div>
-            {/* Header: Title + Filter Toggle */}
-            <div className="flex items-start justify-between gap-4 mb-4">
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="w-1.5 h-5 bg-[#e11d48] rounded-full inline-block" />
-                  <h3 className="font-display font-bold text-lg text-slate-900 tracking-tight">
-                    Customer Map
-                  </h3>
-                </div>
-                <p className="text-xs text-slate-400 mt-1">
-                  Actual order volume and customer activity
-                </p>
-              </div>
-
-              {/* Monthly / Weekly Dropdown */}
-              <div className="relative inline-block">
-                <button
-                  type="button"
-                  onClick={() => setCustomerFilter((prev) => (prev === 'Monthly' ? 'Weekly' : 'Monthly'))}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-600 bg-white border border-slate-200 rounded-lg shadow-xs hover:bg-slate-50 transition-colors"
-                >
-                  {customerFilter}
-                  <ChevronDown className="size-3.5 text-slate-400" />
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Bi-directional Split Bar Chart from actual data */}
-          <div className="h-64 sm:h-72 w-full pt-4">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart
-                data={customerMapChartData}
-                margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
-                barGap={0}
-              >
-                <CartesianGrid
-                  strokeDasharray="0 0"
-                  vertical={false}
-                  stroke="#f1f5f9"
-                  strokeWidth={1}
-                />
-
-                <XAxis
-                  dataKey="label"
-                  tickLine={false}
-                  axisLine={false}
-                  tick={{ fontSize: 11, fill: '#94a3b8', fontWeight: 500 }}
-                  dy={4}
-                />
-
-                <YAxis
-                  domain={[minActivityVal, maxActivityVal]}
-                  allowDecimals={false}
-                  tickLine={false}
-                  axisLine={false}
-                  tick={{ fontSize: 11, fill: '#94a3b8', fontWeight: 500 }}
-                />
-
-                {/* Zero Reference Line */}
-                <ReferenceLine y={0} stroke="#cbd5e1" strokeWidth={1.5} />
-
-                <Tooltip
-                  content={({ active, payload, label }) => {
-                    if (!active || !payload?.length) return null;
-                    return (
-                      <div className="rounded-xl border border-slate-100 bg-white p-2.5 text-xs shadow-lg space-y-1">
-                        <p className="font-bold text-slate-800">{label}</p>
-                        <p className="text-rose-600 font-semibold">
-                          Orders: {payload[0]?.value}
-                        </p>
-                        {Number(payload[1]?.value) < 0 && (
-                          <p className="text-slate-600 font-medium">
-                            Cancelled: {Math.abs(Number(payload[1]?.value))}
-                          </p>
-                        )}
-                      </div>
-                    );
-                  }}
-                />
-
-                {/* Positive (Pink) and Negative (Slate) Bars in the exact same column */}
-                <Bar
-                  dataKey="positive"
-                  stackId="customerStack"
-                  fill="#e11d48"
-                  radius={[3, 3, 0, 0]}
-                  barSize={12}
-                />
-                <Bar
-                  dataKey="negative"
-                  stackId="customerStack"
-                  fill="#334155"
-                  radius={[0, 0, 3, 3]}
-                  barSize={12}
-                />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
+        <FoodMap orders={servedOrders} />
       </div>
 
       {/* ── ROW 2: TOP 3 SELLING FOOD LEADERBOARD ── */}
@@ -503,11 +304,11 @@ export function AnalyticsCharts() {
               const percent = Math.min(Math.round((food.quantity / maxQuantity) * 100), 100);
               return (
                 <div
-                  key={food.name}
+                  key={food.id}
                   className="flex items-center gap-3.5 p-3 rounded-xl border border-slate-100 bg-slate-50/50 hover:bg-slate-50 transition-colors"
                 >
                   <img
-                    src={`/MBB - Images/${food.name}.jpg`}
+                    src={menu.find((dish) => dish.id === food.id || dish.name === food.name)?.image_url || '/placeholder.svg'}
                     alt={food.name}
                     className="size-14 rounded-xl object-cover border border-slate-200 shrink-0 shadow-xs"
                     onError={(e) => {

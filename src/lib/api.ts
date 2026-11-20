@@ -5,6 +5,7 @@
 
 import axios from "axios";
 import config from "@/config";
+import { isMockMode } from "@/lib/mock-mode";
 
 const api = axios.create({
   baseURL: `${config.apiUrl}/api`,
@@ -12,6 +13,16 @@ const api = axios.create({
   headers: {
     "Content-Type": "application/json",
   },
+});
+
+api.interceptors.request.use((request) => {
+  if (isMockMode()) {
+    request.adapter = async (options) => {
+      const { mockAdapter } = await import('./mock-data');
+      return mockAdapter(options);
+    };
+  }
+  return request;
 });
 
 // ============================================================================

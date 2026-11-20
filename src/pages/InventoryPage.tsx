@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { StatCard } from '@/components/dashboard/StatCard';
 import { statSeries } from '@/lib/stat-series';
+import { isMockMode } from '@/lib/mock-mode';
 import type { InventoryItem } from '@/types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -386,7 +387,7 @@ export default function InventoryPage() {
             <Button
               className="bg-[#e11d48] hover:bg-[#be123c] text-white"
               onClick={handleAddItem}
-              disabled={createItem.isPending}
+              disabled={isMockMode() || createItem.isPending}
             >
               {createItem.isPending ? (
                 <>
@@ -464,7 +465,7 @@ export default function InventoryPage() {
             <Button
               className="bg-[#e11d48] hover:bg-[#be123c] text-white"
               onClick={handleApplyAdjustment}
-              disabled={adjustStock.isPending}
+              disabled={isMockMode() || adjustStock.isPending}
             >
               {adjustStock.isPending ? (
                 <>
@@ -570,7 +571,7 @@ export default function InventoryPage() {
                           size="sm"
                           aria-label={`Delete inventory item ${item.name}`}
                           onClick={() => handleDeleteItem(item.id)}
-                          disabled={deleteItem.isPending}
+                          disabled={isMockMode() || deleteItem.isPending}
                           className="size-8 p-0 text-slate-400 hover:text-rose-600 hover:bg-rose-50 max-md:size-11 max-md:border max-md:border-input max-md:bg-background max-md:text-slate-600"
                         >
                           <Trash2 className="size-4" />
