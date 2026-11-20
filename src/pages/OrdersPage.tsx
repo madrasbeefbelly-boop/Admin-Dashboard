@@ -159,19 +159,12 @@ export default function OrdersPage() {
     }
   };
 
-  const handleStatusChange = async (order: any, nextStatus: string, promptReason = false) => {
+  const handleStatusChange = async (order: any, nextStatus: 'Served' | 'Canceled') => {
     let reason: string | undefined = undefined;
-    if (nextStatus === 'Cancelled') {
-      if (order.status === 'Preparing') {
-        const proceed = window.confirm(
-          'Notice: This order is already PREPARING and its recipe ingredients have been deducted from inventory.\n\nCancelling now will NOT restore consumed ingredients to stock.\n\nDo you want to proceed?'
-        );
-        if (!proceed) return;
-      } else if (order.status === 'New') {
-        const proceed = window.confirm('Cancel this order? No ingredients have been deducted yet.');
-        if (!proceed) return;
-      }
-      reason = window.prompt('Optional cancellation reason:') || 'Cancelled by manager';
+    if (nextStatus === 'Canceled') {
+      const proceed = window.confirm(`Cancel order ${order.order_ref}?`);
+      if (!proceed) return;
+      reason = window.prompt('Optional cancellation reason:') || 'Canceled by staff';
     }
 
     try {
@@ -182,14 +175,10 @@ export default function OrdersPage() {
         cancellation_reason: reason,
       });
 
-      if (nextStatus === 'Preparing') {
-        toast.success(`Order ${order.order_ref} is now Preparing! Stock deducted automatically.`);
-      } else if (nextStatus === 'Ready') {
-        toast.success(`Order ${order.order_ref} is Ready!`);
-      } else if (nextStatus === 'Completed') {
-        toast.success(`Order ${order.order_ref} is Completed!`);
-      } else if (nextStatus === 'Cancelled') {
-        toast.info(`Order ${order.order_ref} marked Cancelled.`);
+      if (nextStatus === 'Served') {
+        toast.success(`Order ${order.order_ref} served! Ingredients deducted.`);
+      } else {
+        toast.info(`Order ${order.order_ref} marked Canceled.`);
       }
       await ordersRefetch();
     } catch (err: any) {
@@ -436,38 +425,24 @@ export default function OrdersPage() {
                             <span className="font-mono text-sm font-semibold">{order.order_ref}</span>
 
                             {/* Order Status Badge */}
-                            {(!order.status || order.status === 'New') && (
+                            {(!order.status || order.status === 'New' || order.status === 'Pending') && (
                               <Badge variant="outline" className="text-[11px] font-semibold text-amber-700 border-amber-300 bg-amber-50">
                                 <Clock className="size-2.5 mr-1" />
-                                New
+                                Pending
                               </Badge>
                             )}
 
-                            {order.status === 'Preparing' && (
-                              <Badge variant="outline" className="text-[11px] font-semibold text-blue-700 border-blue-300 bg-blue-50">
-                                <Flame className="size-2.5 mr-1 text-blue-600 animate-pulse" />
-                                Preparing
-                              </Badge>
-                            )}
-
-                            {order.status === 'Ready' && (
-                              <Badge variant="outline" className="text-[11px] font-semibold text-purple-700 border-purple-300 bg-purple-50">
-                                <PackageCheck className="size-2.5 mr-1" />
-                                Ready
-                              </Badge>
-                            )}
-
-                            {order.status === 'Completed' && (
+                            {(order.status === 'Served' || order.status === 'Completed' || order.status === 'Ready') && (
                               <Badge variant="outline" className="text-[11px] font-semibold text-emerald-700 border-emerald-300 bg-emerald-50">
                                 <CheckCircle2 className="size-2.5 mr-1" />
-                                Completed
+                                Served
                               </Badge>
                             )}
 
-                            {order.status === 'Cancelled' && (
+                            {(order.status === 'Canceled' || order.status === 'Cancelled') && (
                               <Badge variant="outline" className="text-[11px] font-semibold text-rose-700 border-rose-300 bg-rose-50">
                                 <XCircle className="size-2.5 mr-1" />
-                                Cancelled
+                                Canceled
                               </Badge>
                             )}
 
@@ -523,81 +498,46 @@ export default function OrdersPage() {
                             <p className="text-xs text-muted-foreground mt-1">No item breakdown</p>
                           )}
 
-                          {/* Order Status Action Controls */}
-                          <div className="mt-3 flex items-center gap-2 flex-wrap pt-2.5 border-t border-border/50">
-                            {(!order.status || order.status === 'New') && (
+                          {/* Order Status Action Controls: Exactly 2 buttons (Served and Canceled) */}
+                          <div className="mt-3 flex items-center gap-2.5 flex-wrap pt-2.5 border-t border-border/50">
+                            {(!order.status || order.status === 'New' || order.status === 'Pending') ? (
                               <>
                                 <Button
                                   size="sm"
-                                  className="h-7.5 px-3 bg-[#e11d48] hover:bg-[#be123c] text-white text-xs font-semibold shadow-xs"
+                                  className="h-8 px-4 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs transition-all"
                                   disabled={updatingOrderId === order.id}
-                                  onClick={() => handleStatusChange(order, 'Preparing')}
+                                  onClick={() => handleStatusChange(order, 'Served')}
                                 >
                                   {updatingOrderId === order.id ? (
                                     <Loader2 className="size-3.5 mr-1.5 animate-spin" />
                                   ) : (
-                                    <ChefHat className="size-3.5 mr-1.5" />
+                                    <CheckCircle2 className="size-3.5 mr-1.5" />
                                   )}
-                                  Start Preparing
+                                  Served
                                 </Button>
+
                                 <Button
                                   size="sm"
-                                  variant="ghost"
-                                  className="h-7.5 px-2.5 text-rose-600 hover:text-rose-700 hover:bg-rose-50 text-xs font-medium"
+                                  variant="outline"
+                                  className="h-8 px-3 border-rose-200 text-rose-600 hover:text-rose-700 hover:bg-rose-50 text-xs font-semibold shadow-xs"
                                   disabled={updatingOrderId === order.id}
-                                  onClick={() => handleStatusChange(order, 'Cancelled', true)}
+                                  onClick={() => handleStatusChange(order, 'Canceled')}
                                 >
-                                  Cancel
+                                  <XCircle className="size-3.5 mr-1.5" />
+                                  Canceled
                                 </Button>
                               </>
-                            )}
-
-                            {order.status === 'Preparing' && (
-                              <>
-                                <Button
-                                  size="sm"
-                                  className="h-7.5 px-3 bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold shadow-xs"
-                                  disabled={updatingOrderId === order.id}
-                                  onClick={() => handleStatusChange(order, 'Ready')}
-                                >
-                                  {updatingOrderId === order.id ? (
-                                    <Loader2 className="size-3.5 mr-1.5 animate-spin" />
-                                  ) : (
-                                    <PackageCheck className="size-3.5 mr-1.5" />
-                                  )}
-                                  Mark Ready
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className="h-7.5 px-2.5 text-rose-600 hover:text-rose-700 hover:bg-rose-50 text-xs font-medium"
-                                  disabled={updatingOrderId === order.id}
-                                  onClick={() => handleStatusChange(order, 'Cancelled', true)}
-                                >
-                                  Cancel Order
-                                </Button>
-                              </>
-                            )}
-
-                            {order.status === 'Ready' && (
-                              <Button
-                                size="sm"
-                                className="h-7.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-xs"
-                                disabled={updatingOrderId === order.id}
-                                onClick={() => handleStatusChange(order, 'Completed')}
-                              >
-                                {updatingOrderId === order.id ? (
-                                  <Loader2 className="size-3.5 mr-1.5 animate-spin" />
+                            ) : (
+                              <span className="text-[11px] font-medium flex items-center gap-1.5">
+                                {order.status === 'Canceled' || order.status === 'Cancelled' ? (
+                                  <span className="text-rose-600 font-semibold">
+                                    {order.cancellation_reason ? `Canceled: ${order.cancellation_reason}` : 'Order was canceled'}
+                                  </span>
                                 ) : (
-                                  <CheckCircle2 className="size-3.5 mr-1.5" />
+                                  <span className="text-emerald-700 font-semibold flex items-center gap-1">
+                                    <CheckCircle2 className="size-3 text-emerald-600" /> Fulfilled &amp; Served
+                                  </span>
                                 )}
-                                Complete Order
-                              </Button>
-                            )}
-
-                            {order.status === 'Cancelled' && (
-                              <span className="text-[11px] text-muted-foreground italic">
-                                {order.cancellation_reason ? `Reason: ${order.cancellation_reason}` : 'Order was cancelled'}
                               </span>
                             )}
                           </div>
@@ -643,13 +583,13 @@ export default function OrdersPage() {
               Insufficient Stock
             </DialogTitle>
             <DialogDescription>
-              Order <strong>{shortageInfo.orderRef}</strong> cannot start preparation because required ingredient stock is insufficient.
+              Order <strong>{shortageInfo.orderRef}</strong> cannot be marked as Served because required ingredient stock is insufficient.
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-3 py-2">
             <div className="rounded-lg border border-rose-200 bg-rose-50/70 p-3 text-xs text-rose-800 leading-relaxed">
-              Preparation was blocked to prevent negative inventory. No stock was deducted. Please restock these ingredients:
+              Serving this order was blocked to prevent negative inventory. Please restock these ingredients:
             </div>
 
             <div className="rounded-xl border border-slate-200 divide-y divide-slate-100 overflow-hidden text-sm bg-white shadow-xs">

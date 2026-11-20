@@ -1773,7 +1773,7 @@ const updateOrderStatusHandler = async (req, res) => {
   const { status, cancellation_reason } = req.body;
   const orderId = req.params.id;
 
-  if (!['New', 'Preparing', 'Ready', 'Completed', 'Cancelled'].includes(status)) {
+  if (!['New', 'Pending', 'Preparing', 'Ready', 'Completed', 'Served', 'Cancelled', 'Canceled'].includes(status)) {
     return res.status(400).json({ success: false, error: 'Invalid order status' });
   }
 
@@ -1795,25 +1795,23 @@ const updateOrderStatusHandler = async (req, res) => {
     const isAlreadyDeducted = Boolean(order.inventory_deducted);
 
     // Rule: Order Cancellation
-    if (status === 'Cancelled') {
-      // "Cancelling an order before preparation must not deduct inventory."
-      // "Cancelling an order after preparation has started must not automatically return consumed ingredients to stock."
+    if (status === 'Cancelled' || status === 'Canceled') {
       await client.query(`
         UPDATE orders 
-        SET status = 'Cancelled', cancellation_reason = $1, updated_at = NOW()
-        WHERE id = $2
-      `, [cancellation_reason || 'Cancelled by manager', orderId]);
+        SET status = $1, cancellation_reason = $2, updated_at = NOW()
+        WHERE id = $3
+      `, [status, cancellation_reason || 'Cancelled by staff', orderId]);
 
       await client.query('COMMIT');
       return res.json({ 
         success: true, 
         message: 'Order cancelled successfully',
-        data: { ...order, status: 'Cancelled', cancellation_reason }
+        data: { ...order, status, cancellation_reason }
       });
     }
 
-    // Rule: Changing an order to 'Preparing' (or Ready/Completed) deducts ingredients automatically exactly once!
-    const shouldDeduct = (status === 'Preparing' || status === 'Ready' || status === 'Completed') && !isAlreadyDeducted;
+    // Rule: Changing an order to 'Served', 'Preparing', 'Ready', or 'Completed' deducts ingredients automatically exactly once!
+    const shouldDeduct = (status === 'Served' || status === 'Preparing' || status === 'Ready' || status === 'Completed') && !isAlreadyDeducted;
 
     if (shouldDeduct) {
       // 2. Fetch order items
