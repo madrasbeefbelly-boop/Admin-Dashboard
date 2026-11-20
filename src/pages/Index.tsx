@@ -96,35 +96,34 @@ export default function Index() {
         </div>
       ) : (
         <div className="space-y-6">
-          {/* ── TOP STAT CARDS (4 CARDS WITH ACTUAL DATA ONLY) ── */}
-          <div className="dashboard-counts grid grid-cols-2 gap-3 md:gap-5 xl:grid-cols-4">
-            <StatCard
-              title="Menus"
-              value={menusCount}
-              icon={UtensilsCrossed}
-              dataPoints={past7DaysData.menus}
-            />
-            <StatCard
-              title="Orders"
-              value={ordersCount}
-              icon={ClipboardList}
-              dataPoints={past7DaysData.orders}
-            />
-            <StatCard
-              title="Customers"
-              value={customersCount}
-              icon={Users}
-              dataPoints={past7DaysData.customers}
-            />
-            <StatCard
-              title="Income"
-              value={incomeValue}
-              icon={DollarSign}
-              dataPoints={past7DaysData.sales}
-            />
-          </div>
-
-          <AnalyticsCharts />
+          <AnalyticsCharts summaryCards={(
+            <div className="dashboard-counts grid grid-cols-2 gap-3 md:gap-5 xl:grid-cols-4">
+              <StatCard
+                title="Menus"
+                value={menusCount}
+                icon={UtensilsCrossed}
+                dataPoints={past7DaysData.menus}
+              />
+              <StatCard
+                title="Orders"
+                value={ordersCount}
+                icon={ClipboardList}
+                dataPoints={past7DaysData.orders}
+              />
+              <StatCard
+                title="Customers"
+                value={customersCount}
+                icon={Users}
+                dataPoints={past7DaysData.customers}
+              />
+              <StatCard
+                title="Income"
+                value={incomeValue}
+                icon={DollarSign}
+                dataPoints={past7DaysData.sales}
+              />
+            </div>
+          )} />
 
           {/* ── BOTTOM LOW STOCK STATUS ── */}
           <LowStockAlert items={(lowStock.data ?? []).slice(0, 5)} />

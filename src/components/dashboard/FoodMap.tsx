@@ -2,13 +2,14 @@ import { useState } from 'react';
 import { Utensils } from 'lucide-react';
 import type { Order } from '@/types';
 import { summarizeFoodSales } from '@/lib/food-sales';
+import { cn } from '@/lib/utils';
 
 const businessDate = new Intl.DateTimeFormat('en-CA', {
   timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit',
 });
 const currency = new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 });
 
-export function FoodMap({ orders }: { orders: Order[] }) {
+export function FoodMap({ orders, className }: { orders: Order[]; className?: string }) {
   const [days, setDays] = useState(30);
   const [showAll, setShowAll] = useState(false);
   const start = new Date(`${businessDate.format(new Date())}T00:00:00+05:30`).getTime() - (days - 1) * 86_400_000;
@@ -17,7 +18,7 @@ export function FoodMap({ orders }: { orders: Order[] }) {
   const shown = showAll ? dishes : dishes.slice(0, 5);
 
   return (
-    <section aria-labelledby="food-map-title" className="card-premium min-w-0 p-5 sm:p-6 lg:col-span-5">
+    <section aria-labelledby="food-map-title" className={cn("card-premium min-w-0 p-5 sm:p-6 lg:col-span-5", className)}>
       <div className="mb-4 flex flex-wrap items-start justify-between gap-2">
         <div>
           <div className="flex items-center gap-2">

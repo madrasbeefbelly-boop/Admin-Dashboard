@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, type ReactNode } from 'react';
 import {
   ResponsiveContainer,
   AreaChart,
@@ -20,7 +20,7 @@ const currency = new Intl.NumberFormat('en-IN', {
   maximumFractionDigits: 0,
 });
 
-export function AnalyticsCharts() {
+export function AnalyticsCharts({ summaryCards }: { summaryCards: ReactNode }) {
   const { data: orders = [] } = useOrders();
   const { data: purchases = [] } = usePurchases();
   const servedOrders = useMemo(() => orders.filter(isServedOrder), [orders]);
@@ -114,8 +114,8 @@ export function AnalyticsCharts() {
     <div className="space-y-6 mb-8">
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         
-        {/* ── LEFT: REVENUE WAVE CHART (7 cols on lg) ── */}
-        <div className="lg:col-span-7 card-premium p-6 flex flex-col justify-between">
+        {/* ── REVENUE WAVE CHART (Top on mobile, 2nd on desktop) ── */}
+        <div className="order-1 md:order-2 lg:col-span-7 card-premium p-6 flex flex-col justify-between">
           <div>
             {/* Header: Title + Filter Toggle */}
             <div className="flex items-start justify-between gap-4 mb-4">
@@ -253,7 +253,13 @@ export function AnalyticsCharts() {
           </div>
         </div>
 
-        <FoodMap orders={servedOrders} />
+        {/* ── 4 SUMMARY BOXES (2nd on mobile, Top on desktop) ── */}
+        <div className="order-2 md:order-1 md:col-span-full lg:col-span-full">
+          {summaryCards}
+        </div>
+
+        {/* ── FOOD MAP (3rd on mobile, right column on desktop) ── */}
+        <FoodMap orders={servedOrders} className="order-3 md:order-3" />
       </div>
 
       <OrderBreakdown orders={orders} />
