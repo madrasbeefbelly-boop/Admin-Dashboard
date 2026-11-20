@@ -51,14 +51,8 @@ export default function OrdersPage() {
   const [orderPlaced, setOrderPlaced] = useState(false);
   const [lastOrderRef, setLastOrderRef] = useState('');
 
-  // Only show available items that have a selling price
-  const availableItems = useMemo(
-    () =>
-      menuItems.filter(
-        (item) => item.is_available && formatPrice(item.selling_price) != null,
-      ),
-    [menuItems],
-  );
+  // Show all menu items — same list as the Menu page
+  const availableItems = useMemo(() => menuItems, [menuItems]);
 
   const subtotal = cart.reduce((sum, ci) => sum + ci.unit_price * ci.quantity, 0);
   const totalItems = cart.reduce((sum, ci) => sum + ci.quantity, 0);
@@ -70,7 +64,7 @@ export default function OrdersPage() {
     }
     const item = availableItems.find((i) => i.id === selectedId);
     if (!item) return;
-    const price = formatPrice(item.selling_price)!;
+    const price = formatPrice(item.selling_price) ?? 0;
     setCart((prev) => {
       const existing = prev.find((ci) => ci.menu_item_id === item.id);
       if (existing) {
@@ -174,19 +168,22 @@ export default function OrdersPage() {
             <SelectContent>
               {availableItems.length === 0 ? (
                 <SelectItem value="__none" disabled>
-                  No priced dishes available
+                  No menu items found — add dishes in Menu &amp; Costing
                 </SelectItem>
               ) : (
-                availableItems.map((item) => (
-                  <SelectItem key={item.id} value={item.id}>
-                    <span className="flex items-center justify-between gap-4 w-full">
-                      <span>{item.name}</span>
-                      <span className="text-muted-foreground tabular-nums">
-                        ₹{Number(item.selling_price).toFixed(0)}
+                availableItems.map((item) => {
+                  const price = formatPrice(item.selling_price);
+                  return (
+                    <SelectItem key={item.id} value={item.id}>
+                      <span className="flex items-center justify-between gap-4 w-full">
+                        <span>{item.name}</span>
+                        <span className="text-muted-foreground tabular-nums">
+                          {price != null ? `₹${price.toFixed(0)}` : '—'}
+                        </span>
                       </span>
-                    </span>
-                  </SelectItem>
-                ))
+                    </SelectItem>
+                  );
+                })
               )}
             </SelectContent>
           </Select>
