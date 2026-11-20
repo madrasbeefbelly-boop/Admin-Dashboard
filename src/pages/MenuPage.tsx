@@ -483,11 +483,11 @@ export default function MenuPage() {
           {filteredItems.map((item) => (
             <div
               key={item.id}
-              className="card-premium p-4 group hover:border-[#e11d48]/30 transition-all duration-300 flex flex-col justify-between"
+              className="card-premium p-3.5 sm:p-4 group hover:border-[#e11d48]/30 transition-all duration-300 flex flex-col justify-between"
             >
               <div>
-                {/* Dish Image Banner */}
-                <div className="relative mb-3 h-44 w-full overflow-hidden rounded-xl bg-slate-100">
+                {/* Dish Image Banner - increased height for mobile and desktop */}
+                <div className="relative mb-2.5 h-60 sm:h-64 md:h-56 lg:h-64 w-full overflow-hidden rounded-xl bg-slate-100 shadow-xs">
                   <DishCardImage src={item.image_url} name={item.name} aspectRatio="banner" />
                   <div className="absolute top-2.5 left-2.5 flex flex-col gap-1 items-start">
                     {item.ingredients && item.ingredients.length > 0 ? (
@@ -528,40 +528,42 @@ export default function MenuPage() {
                   </div>
                 </div>
 
-                <Badge variant="outline" className={cn('mb-2', categoryColors[item.category])}>
-                  {item.category}
-                </Badge>
-                <div className="flex items-center justify-between gap-2 mb-1">
-                  <h3 className="font-display text-lg font-bold text-slate-900 truncate">
+                {/* Compact Content: Category badge + Recipe ingredients on same row, Dish Name below */}
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <Badge variant="outline" className={cn('text-[10px] font-bold px-2 py-0.5 rounded-md border', categoryColors[item.category])}>
+                      {item.category}
+                    </Badge>
+                    {item.ingredients && item.ingredients.length > 0 ? (
+                      <span className="text-[11px] text-slate-500 flex items-center gap-1 font-medium">
+                        <Layers className="size-3 text-[#e11d48]" />
+                        {item.ingredients.length} ingredients
+                      </span>
+                    ) : (
+                      <span className="text-[11px] text-slate-400 italic">No recipe</span>
+                    )}
+                  </div>
+                  <h3 className="font-display text-base sm:text-lg font-bold text-slate-900 group-hover:text-[#e11d48] transition-colors truncate">
                     {item.name}
                   </h3>
                 </div>
-
-                {item.ingredients && item.ingredients.length > 0 ? (
-                  <p className="text-[11px] text-slate-500 mb-2 flex items-center gap-1">
-                    <Layers className="size-3 text-[#e11d48]" />
-                    {item.ingredients.length} recipe ingredient{item.ingredients.length > 1 ? 's' : ''}
-                  </p>
-                ) : (
-                  <p className="text-[11px] text-slate-400 mb-2 italic">No recipe linked</p>
-                )}
-
               </div>
 
-              <div className="grid grid-cols-3 gap-2 pt-3 border-t border-slate-100 mt-3">
+              {/* Compact Pricing Row: Cost, Price, Margin */}
+              <div className="grid grid-cols-3 gap-2 pt-2.5 mt-2.5 border-t border-slate-100">
                 <div>
-                  <p className="text-[11px] text-slate-400 font-medium">Cost</p>
-                  <p className="font-semibold text-xs text-slate-700">{formatPrice(item.cost_per_serving)}</p>
+                  <p className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">Cost</p>
+                  <p className="font-semibold text-xs text-slate-700 tabular-nums">{formatPrice(item.cost_per_serving)}</p>
                 </div>
                 <div>
-                  <p className="text-[11px] text-slate-400 font-medium">Price</p>
-                  <p className="font-bold text-xs text-[#e11d48]">{formatPrice(item.selling_price)}</p>
+                  <p className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">Price</p>
+                  <p className="font-bold text-xs text-[#e11d48] tabular-nums">{formatPrice(item.selling_price)}</p>
                 </div>
                 <div>
-                  <p className="text-[11px] text-slate-400 font-medium">Margin</p>
+                  <p className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">Margin</p>
                   <p
                     className={cn(
-                      'font-semibold text-xs',
+                      'font-semibold text-xs tabular-nums',
                       item.margin_percent == null
                         ? 'text-slate-400'
                         : Number(item.margin_percent) >= 50
