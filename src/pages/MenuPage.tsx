@@ -301,7 +301,7 @@ export default function MenuPage() {
       </div>
 
       {/* Filters & View Toggle Bar */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 mb-6">
+      <div className="mb-6 flex flex-col items-stretch gap-3 lg:flex-row lg:items-center">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
           <Input
@@ -312,9 +312,9 @@ export default function MenuPage() {
           />
         </div>
 
-        <div className="flex items-center gap-2.5 flex-wrap sm:flex-nowrap">
+        <div className="flex flex-wrap items-center gap-2 sm:flex-nowrap sm:gap-2.5">
           <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-            <SelectTrigger className="w-[160px] bg-white" aria-label="Filter by category">
+            <SelectTrigger className="w-30 bg-white sm:w-[160px]" aria-label="Filter by category">
               <SelectValue placeholder="All Categories" />
             </SelectTrigger>
             <SelectContent>
@@ -327,47 +327,49 @@ export default function MenuPage() {
             </SelectContent>
           </Select>
 
-          {/* List View / Grid View Segmented Button */}
-          <div className="flex items-center rounded-xl border border-slate-200 bg-slate-100/90 p-1 shadow-xs">
-            <button
-              type="button"
-              onClick={() => handleViewModeChange('grid')}
-              className={cn(
-                'flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all',
-                viewMode === 'grid'
-                  ? 'bg-white text-slate-900 shadow-xs'
-                  : 'text-slate-500 hover:text-slate-900'
-              )}
-              aria-label="Grid view"
-              title="Grid view"
-            >
-              <LayoutGrid className="size-4" />
-              <span className="hidden sm:inline">Grid</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => handleViewModeChange('list')}
-              className={cn(
-                'flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all',
-                viewMode === 'list'
-                  ? 'bg-white text-slate-900 shadow-xs'
-                  : 'text-slate-500 hover:text-slate-900'
-              )}
-              aria-label="List view"
-              title="List view"
-            >
-              <List className="size-4" />
-              <span className="hidden sm:inline">List</span>
-            </button>
-          </div>
+          <div className="ml-auto flex shrink-0 items-center gap-2 sm:ml-0 sm:gap-2.5">
+            {/* List View / Grid View Segmented Button */}
+            <div className="flex items-center rounded-xl border border-slate-200 bg-slate-100/90 p-1 shadow-xs">
+              <button
+                type="button"
+                onClick={() => handleViewModeChange('grid')}
+                className={cn(
+                  'flex items-center gap-1.5 px-2 py-1.5 sm:px-3 text-xs font-semibold rounded-lg transition-all',
+                  viewMode === 'grid'
+                    ? 'bg-white text-slate-900 shadow-xs'
+                    : 'text-slate-500 hover:text-slate-900'
+                )}
+                aria-label="Grid view"
+                title="Grid view"
+              >
+                <LayoutGrid className="size-4" />
+                <span className="hidden sm:inline">Grid</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleViewModeChange('list')}
+                className={cn(
+                  'flex items-center gap-1.5 px-2 py-1.5 sm:px-3 text-xs font-semibold rounded-lg transition-all',
+                  viewMode === 'list'
+                    ? 'bg-white text-slate-900 shadow-xs'
+                    : 'text-slate-500 hover:text-slate-900'
+                )}
+                aria-label="List view"
+                title="List view"
+              >
+                <List className="size-4" />
+                <span className="hidden sm:inline">List</span>
+              </button>
+            </div>
 
-          <Button
-            className="bg-[#e11d48] hover:bg-[#be123c] text-white shrink-0 shadow-xs"
-            onClick={() => openDishForm()}
-          >
-            <Plus className="size-4 mr-1.5" />
-            Add Dish
-          </Button>
+            <Button
+              className="bg-[#e11d48] hover:bg-[#be123c] text-white shrink-0 shadow-xs max-sm:px-2.5"
+              onClick={() => openDishForm()}
+            >
+              <Plus className="size-4 sm:mr-1.5" />
+              Add Dish
+            </Button>
+          </div>
         </div>
       </div>
 
