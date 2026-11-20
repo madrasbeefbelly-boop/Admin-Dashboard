@@ -67,6 +67,71 @@ const emptyDish = {
 const formatPrice = (value: string | number | null) =>
   value == null ? 'Not set' : '₹' + Number(value).toFixed(2);
 
+function DishCardImage({
+  src,
+  name,
+  className,
+  aspectRatio = 'banner',
+}: {
+  src?: string | null;
+  name: string;
+  className?: string;
+  aspectRatio?: 'banner' | 'square';
+}) {
+  const [hasError, setHasError] = useState(false);
+  const isPlaceholder = !src || src === '/placeholder.svg' || hasError;
+
+  if (isPlaceholder) {
+    return (
+      <div
+        className={cn(
+          'h-full w-full flex flex-col items-center justify-center bg-gradient-to-br from-rose-50/70 via-slate-50 to-rose-100/40 text-slate-400 select-none border border-dashed border-rose-200/50',
+          aspectRatio === 'square' ? 'p-2 text-center' : 'p-4',
+          className
+        )}
+      >
+        <div
+          className={cn(
+            'rounded-xl bg-white/95 shadow-xs flex items-center justify-center border border-rose-100/80',
+            aspectRatio === 'square' ? 'size-9 mb-1' : 'size-12 mb-2'
+          )}
+        >
+          <UtensilsCrossed
+            className={cn(
+              'text-[#e11d48]/60',
+              aspectRatio === 'square' ? 'size-4.5' : 'size-6'
+            )}
+          />
+        </div>
+        <span
+          className={cn(
+            'font-bold text-slate-400 uppercase tracking-wider',
+            aspectRatio === 'square' ? 'text-[9px]' : 'text-[11px]'
+          )}
+        >
+          Image Placeholder
+        </span>
+        {aspectRatio !== 'square' && (
+          <span className="text-[10px] text-slate-400/80 mt-0.5">Madras Beef Belly</span>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={src}
+      alt={name}
+      loading="lazy"
+      className={cn(
+        'h-full w-full object-cover transition-transform duration-300 group-hover:scale-105',
+        className
+      )}
+      onError={() => setHasError(true)}
+    />
+  );
+}
+
 export default function MenuPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
@@ -455,15 +520,7 @@ export default function MenuPage() {
               <div>
                 {/* Dish Image Banner */}
                 <div className="relative mb-3 h-44 w-full overflow-hidden rounded-xl bg-slate-100">
-                  <img
-                    src={item.image_url || `/MBB - Images/${item.name}.jpg`}
-                    alt={item.name}
-                    loading="lazy"
-                    className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-                    onError={(e) => {
-                      (e.target as HTMLElement).style.display = 'none';
-                    }}
-                  />
+                  <DishCardImage src={item.image_url} name={item.name} aspectRatio="banner" />
                   <div className="absolute top-2.5 left-2.5 flex flex-col gap-1 items-start">
                     <Badge className={cn('border backdrop-blur-md shadow-xs', categoryColors[item.category])}>
                       {item.category}
@@ -565,15 +622,7 @@ export default function MenuPage() {
               <div className="flex items-center gap-4 sm:gap-6 min-w-0 flex-1">
                 {/* Large Food Image */}
                 <div className="relative size-24 sm:size-28 md:w-36 md:h-28 shrink-0 overflow-hidden rounded-2xl border border-slate-200/80 bg-slate-100 shadow-xs">
-                  <img
-                    src={item.image_url || `/MBB - Images/${item.name}.jpg`}
-                    alt={item.name}
-                    loading="lazy"
-                    className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-                    onError={(e) => {
-                      (e.target as HTMLElement).style.display = 'none';
-                    }}
-                  />
+                  <DishCardImage src={item.image_url} name={item.name} aspectRatio="square" />
                 </div>
 
                 {/* Dish Info */}

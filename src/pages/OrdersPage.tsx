@@ -35,6 +35,7 @@ import {
   AlertTriangle,
   ChefHat,
   ArrowRight,
+  UtensilsCrossed,
 } from 'lucide-react';
 import { useMenuItems, useCreateOrder, useOrders, useDeleteOrder, useUpdateOrderStatus } from '@/hooks/api';
 import { toast } from 'sonner';
@@ -246,12 +247,18 @@ export default function OrdersPage() {
                     return (
                       <SelectItem key={item.id} value={item.id}>
                         <span className="flex items-center gap-2.5 w-full">
-                          <img
-                            src={`/MBB - Images/${item.name}.jpg`}
-                            alt=""
-                            className="size-7 rounded object-cover shrink-0 border border-border/60"
-                            onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
-                          />
+                          {item.image_url && item.image_url !== '/placeholder.svg' ? (
+                            <img
+                              src={item.image_url}
+                              alt=""
+                              className="size-7 rounded object-cover shrink-0 border border-border/60"
+                              onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
+                            />
+                          ) : (
+                            <div className="size-7 rounded bg-rose-50 border border-rose-100 flex items-center justify-center shrink-0">
+                              <UtensilsCrossed className="size-3.5 text-rose-400" />
+                            </div>
+                          )}
                           <span className="truncate">{item.name}</span>
                           {item.ingredients && item.ingredients.length > 0 && (
                             <span className={cn(
@@ -306,12 +313,22 @@ export default function OrdersPage() {
                 <div className="divide-y divide-border">
                   {cart.map((ci) => (
                     <div key={ci.menu_item_id} className="flex items-center gap-3 px-5 py-3">
-                      <img
-                        src={`/MBB - Images/${ci.name}.jpg`}
-                        alt=""
-                        className="size-11 rounded-lg object-cover shrink-0 border border-border/80"
-                        onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
-                      />
+                      {(() => {
+                        const menuItem = (menuItems || []).find((m: any) => m.id === ci.menu_item_id);
+                        const imgUrl = menuItem?.image_url;
+                        return imgUrl && imgUrl !== '/placeholder.svg' ? (
+                          <img
+                            src={imgUrl}
+                            alt=""
+                            className="size-11 rounded-lg object-cover shrink-0 border border-border/80"
+                            onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
+                          />
+                        ) : (
+                          <div className="size-11 rounded-lg bg-rose-50 border border-rose-100 flex items-center justify-center shrink-0">
+                            <UtensilsCrossed className="size-5 text-rose-400" />
+                          </div>
+                        );
+                      })()}
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium leading-tight [overflow-wrap:anywhere]">
                           {ci.name}
@@ -477,12 +494,22 @@ export default function OrdersPage() {
                               {order.items.map((i: any, idx: number) => (
                                 <li key={idx} className="flex items-center justify-between gap-3 text-muted-foreground">
                                   <span className="flex items-center gap-2 min-w-0">
-                                    <img
-                                      src={`/MBB - Images/${i.name}.jpg`}
-                                      alt=""
-                                      className="size-6 rounded object-cover shrink-0 border border-border/60"
-                                      onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
-                                    />
+                                    {(() => {
+                                      const menuItem = (menuItems || []).find((m: any) => m.id === i.menu_item_id || m.name === i.name);
+                                      const imgUrl = menuItem?.image_url;
+                                      return imgUrl && imgUrl !== '/placeholder.svg' ? (
+                                        <img
+                                          src={imgUrl}
+                                          alt=""
+                                          className="size-6 rounded object-cover shrink-0 border border-border/60"
+                                          onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
+                                        />
+                                      ) : (
+                                        <div className="size-6 rounded bg-rose-50 border border-rose-100 flex items-center justify-center shrink-0">
+                                          <UtensilsCrossed className="size-3 text-rose-400" />
+                                        </div>
+                                      );
+                                    })()}
                                     <span className="truncate">{i.name}</span>{' '}
                                     <span className="font-semibold text-foreground shrink-0">×{i.quantity}</span>
                                   </span>
