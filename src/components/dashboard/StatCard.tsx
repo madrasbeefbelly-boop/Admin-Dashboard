@@ -95,7 +95,7 @@ export function StatCard({
               </span>
             )}
           </div>
-          <p className="text-xs font-medium text-slate-400 mt-1 capitalize">{title}</p>
+          <p className="text-xs font-medium text-muted-foreground mt-1 capitalize">{title}</p>
         </div>
 
         {/* Top-Right Outline Icon */}

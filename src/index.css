@@ -18,10 +18,10 @@
   --color-background: #fafafb;
   --color-foreground: #0f172a;
 
-  --color-card: #ffffff;
+  --color-card: #eef0f2;
   --color-card-foreground: #0f172a;
 
-  --color-popover: #ffffff;
+  --color-popover: var(--color-card);
   --color-popover-foreground: #0f172a;
 
   --color-primary: #e11d48;
@@ -31,7 +31,7 @@
   --color-secondary-foreground: #1e293b;
 
   --color-muted: #f8fafc;
-  --color-muted-foreground: #64748b;
+  --color-muted-foreground: #546376;
 
   --color-accent: #ffe4e6;
   --color-accent-foreground: #e11d48;
@@ -216,6 +216,7 @@
     align-items: center;
     justify-items: center;
     padding: clamp(1.5rem, 5vw, 4rem);
+    background-color: var(--color-card);
   }
 
   .auth-panel-inner {
@@ -255,7 +256,7 @@
   }
 
   .auth-panel input {
-    background: var(--color-card);
+    background: var(--color-background);
   }
 
   .auth-panel .auth-submit {
@@ -383,9 +384,9 @@
 
   .card-premium,
   .stat-card {
-    border: 1px solid #f1f5f9;
+    border: 1px solid var(--color-input);
     border-radius: 1rem;
-    background: #ffffff;
+    background: var(--color-card);
     box-shadow:
       0 1px 3px 0 rgba(0, 0, 0, 0.03),
       0 1px 2px -1px rgba(0, 0, 0, 0.03);
