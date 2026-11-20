@@ -1,0 +1,410 @@
+@import '@fontsource/inter/400.css';
+@import '@fontsource/inter/500.css';
+@import '@fontsource/inter/600.css';
+@import '@fontsource/inter/700.css';
+
+@import 'tailwindcss';
+
+@theme {
+  /* Font Families - Tailwind v4 format */
+  --font-family-sans: 'Inter', system-ui, -apple-system, sans-serif;
+    --default-font-family: var(--font-family-sans);
+  
+  /* Custom font utilities */
+  --font-display: var(--font-family-sans);
+  --font-body: var(--font-family-sans);
+
+  /* Colors - Light Mode */
+  --color-background: #f7f4ee;
+  --color-foreground: hsl(30 10% 15%);
+  
+  --color-card: #fffdfa;
+  --color-card-foreground: hsl(30 10% 15%);
+  
+  --color-popover: #fffdfa;
+  --color-popover-foreground: hsl(30 10% 15%);
+  
+  --color-primary: #a92920;
+  --color-primary-foreground: hsl(40 30% 97%);
+  
+  --color-secondary: hsl(35 15% 93%);
+  --color-secondary-foreground: hsl(30 10% 25%);
+  
+  --color-muted: hsl(35 12% 90%);
+  --color-muted-foreground: hsl(30 8% 45%);
+  
+  --color-accent: #f1d8d2;
+  --color-accent-foreground: hsl(30 10% 15%);
+  
+  --color-gold: #b63228;
+  --color-gold-light: #e99081;
+  --color-gold-muted: #f2d8d1;
+  
+  --color-success: hsl(145 50% 40%);
+  --color-success-foreground: hsl(0 0% 100%);
+  
+  --color-warning: hsl(38 90% 55%);
+  --color-warning-foreground: hsl(30 10% 15%);
+  
+  --color-info: hsl(200 60% 50%);
+  --color-info-foreground: hsl(0 0% 100%);
+  
+  --color-destructive: hsl(0 65% 50%);
+  --color-destructive-foreground: hsl(0 0% 100%);
+  
+  --color-border: hsl(35 20% 88%);
+  --color-input: hsl(35 20% 88%);
+  --color-ring: #b63228;
+
+  /* Sidebar Colors */
+  --color-sidebar: hsl(38 25% 96%);
+  --color-sidebar-foreground: hsl(30 10% 25%);
+  --color-sidebar-primary: hsl(38 45% 55%);
+  --color-sidebar-primary-foreground: hsl(0 0% 100%);
+  --color-sidebar-accent: hsl(38 30% 90%);
+  --color-sidebar-accent-foreground: hsl(30 10% 20%);
+  --color-sidebar-border: hsl(35 20% 90%);
+  --color-sidebar-ring: hsl(38 45% 65%);
+
+  /* Border Radius */
+  --radius-lg: 0.5rem;
+  --radius-md: calc(0.5rem - 2px);
+  --radius-sm: calc(0.5rem - 4px);
+
+  /* Shadows */
+  --shadow-soft: 0 2px 8px -2px hsl(30 10% 20% / 0.08);
+  --shadow-card: 0 4px 16px -4px hsl(30 10% 20% / 0.1);
+  --shadow-elevated: 0 8px 30px -8px hsl(30 10% 20% / 0.15);
+
+  /* Animations */
+  --animate-accordion-down: accordion-down 0.2s ease-out;
+  --animate-accordion-up: accordion-up 0.2s ease-out;
+  
+  @keyframes accordion-down {
+    from { height: 0; }
+    to { height: var(--radix-accordion-content-height); }
+  }
+  
+  @keyframes accordion-up {
+    from { height: var(--radix-accordion-content-height); }
+    to { height: 0; }
+  }
+}
+
+@layer base {
+  :root {
+    color-scheme: light;
+  }
+
+  .dark {
+    color-scheme: dark;
+    --color-background: hsl(30 10% 8%);
+    --color-foreground: hsl(40 20% 95%);
+    --color-card: hsl(30 10% 10%);
+    --color-card-foreground: hsl(40 20% 95%);
+    --color-popover: hsl(30 10% 10%);
+    --color-popover-foreground: hsl(40 20% 95%);
+    --color-primary: hsl(38 45% 65%);
+    --color-primary-foreground: hsl(30 10% 10%);
+    --color-secondary: hsl(30 10% 15%);
+    --color-secondary-foreground: hsl(40 20% 90%);
+    --color-muted: hsl(30 10% 18%);
+    --color-muted-foreground: hsl(35 15% 60%);
+
+    --color-accent: hsl(38 50% 55%);
+    --color-accent-foreground: hsl(30 10% 10%);
+    --color-gold: hsl(38 55% 60%);
+    --color-gold-light: hsl(40 50% 70%);
+    --color-gold-muted: hsl(38 30% 25%);
+    --color-destructive: hsl(0 60% 45%);
+    --color-destructive-foreground: hsl(0 0% 100%);
+    --color-border: hsl(30 10% 20%);
+    --color-input: hsl(30 10% 20%);
+    --color-ring: hsl(38 50% 55%);
+    --color-sidebar: hsl(30 10% 6%);
+    --color-sidebar-foreground: hsl(40 20% 90%);
+    --color-sidebar-primary: hsl(38 50% 55%);
+    --color-sidebar-primary-foreground: hsl(30 10% 10%);
+    --color-sidebar-accent: hsl(30 10% 15%);
+    --color-sidebar-accent-foreground: hsl(40 20% 90%);
+    --color-sidebar-border: hsl(30 10% 18%);
+    --color-sidebar-ring: hsl(38 50% 55%);
+  }
+
+  * {
+    border-color: var(--color-border);
+  }
+
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-body);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-display);
+  }
+}
+
+@layer utilities {
+  .font-display {
+    font-family: var(--font-display);
+  }
+  
+  .font-body {
+    font-family: var(--font-body);
+  }
+}
+
+
+@layer components {
+  .brand-mark {
+    display: grid;
+    align-items: center;
+    flex: none;
+    width: 3rem;
+    height: 3rem;
+    border-radius: 0.65rem;
+    border: 1px solid #963128;
+    background: #141211;
+  }
+
+  .brand-mark::before {
+    content: '';
+    height: 58%;
+    background: url('/brand/madras-beef-belly-menu.jpeg') 50% 0 / 330% auto no-repeat;
+  }
+
+  .auth-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1.18fr) minmax(0, 1fr);
+    min-height: 100dvh;
+  }
+
+  .auth-art {
+    display: grid;
+    place-items: center;
+    padding: clamp(1.5rem, 4vw, 4.5rem);
+    background: radial-gradient(ellipse at 22% 12%, #371814, #171413 65%);
+    border-right: 1px solid #4c2420;
+  }
+
+  .auth-art img {
+    width: min(100%, calc(100dvh - 5rem), 47rem);
+    height: auto;
+    border: 1px solid #723029;
+    box-shadow: 0 1.5rem 4rem #0008;
+  }
+
+  .auth-panel {
+    display: grid;
+    align-items: center;
+    justify-items: center;
+    padding: clamp(1.5rem, 5vw, 4rem);
+  }
+
+  .auth-panel-inner {
+    width: min(100%, 25rem);
+  }
+
+  .auth-brand {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    padding-bottom: 1.3rem;
+    margin-bottom: 2rem;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .auth-brand strong {
+    font-size: 1.18rem;
+    font-weight: 750;
+    letter-spacing: -0.045em;
+  }
+
+  .auth-brand p, .auth-description {
+    color: var(--color-muted-foreground);
+    font-size: 0.875rem;
+  }
+
+  .auth-panel h1 {
+    font-size: clamp(2rem, 4.5vw, 3.1rem);
+    font-weight: 750;
+    line-height: 1.05;
+    letter-spacing: -0.065em;
+  }
+
+  .auth-description {
+    margin: 0.75rem 0 1.65rem;
+  }
+
+  .auth-panel input {
+    background: var(--color-card);
+  }
+
+  .auth-panel .auth-submit {
+    min-height: 2.75rem;
+    background: #a92920;
+    color: white;
+  }
+
+  .auth-panel .auth-submit:hover {
+    background: #8d1e17;
+  }
+
+  .business-sidebar {
+    display: flex;
+    flex-direction: column;
+    height: 100dvh;
+  }
+
+  .business-sidebar > button {
+    color: var(--color-foreground);
+  }
+
+  .sidebar-brand {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    min-height: 4.9rem;
+    padding: 0.5rem 2rem 1rem 0.25rem;
+    border-bottom: 1px solid #403331;
+  }
+
+  .sidebar-brand strong, .sidebar-brand small {
+    display: block;
+  }
+
+  .sidebar-brand strong {
+    font-size: 1rem;
+    font-weight: 750;
+    letter-spacing: -0.04em;
+  }
+
+  .sidebar-brand small {
+    margin-top: 0.15rem;
+    color: #ceb8ae;
+    font-size: 0.6875rem;
+  }
+
+  .sidebar-nav {
+    display: grid;
+    align-content: start;
+    flex: 1;
+    gap: 0.25rem;
+    padding: 1rem 0;
+    overflow: auto;
+  }
+
+  .sidebar-link {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 0.7rem;
+    min-height: 2.65rem;
+    padding: 0.55rem 0.7rem;
+    border: 1px solid transparent;
+    border-radius: 0.5rem;
+    color: #decfc8;
+    font-size: 0.84rem;
+    white-space: nowrap;
+  }
+
+  .sidebar-link:hover {
+    background: #2d2422;
+    color: white;
+  }
+
+  .sidebar-link-active, .sidebar-link-active:hover {
+    border-color: #91413a;
+    background: #462321;
+    color: #fff0ea;
+  }
+
+  .card-premium, .stat-card {
+    border: 1px solid var(--color-border);
+    border-radius: 0.75rem;
+    background: var(--color-card);
+  }
+
+  .stat-card {
+    padding: 1rem;
+  }
+
+  @media (max-width: 767px) {
+    .auth-layout {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .auth-panel {
+      grid-row: 1;
+      padding-top: 2.25rem;
+      padding-bottom: 2.25rem;
+    }
+
+    .auth-art {
+      border-right: 0;
+      border-top: 1px solid #4c2420;
+    }
+
+  }
+}
+
+@media (width < 48rem) {
+  .mobile-records,
+  .mobile-records tbody {
+    display: block;
+  }
+
+  .mobile-records thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .mobile-records tbody tr {
+    display: block;
+    padding: 0.75rem;
+  }
+
+  .mobile-records tbody td {
+    display: grid;
+    grid-template-columns: minmax(4.75rem, 32%) minmax(0, 1fr);
+    align-items: center;
+    gap: 0.625rem;
+    min-width: 0;
+    min-height: 2rem;
+    padding: 0.25rem 0;
+  }
+
+  .mobile-records .mobile-record-label {
+    display: block;
+    color: var(--color-muted-foreground);
+    font-size: 0.8125rem;
+    font-weight: 500;
+  }
+
+  .mobile-records .mobile-record-value {
+    display: block;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .mobile-records .mobile-record-value button {
+    min-height: 2.75rem;
+    max-width: 100%;
+  }
+
+  .mobile-records .mobile-record-value button[role='combobox'] {
+    width: 100%;
+  }
+
+  .mobile-records .mobile-record-value button:not([role='combobox']) {
+    min-width: 2.75rem;
+  }
+}
