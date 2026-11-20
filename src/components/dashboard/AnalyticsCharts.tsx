@@ -8,13 +8,11 @@ import {
   Tooltip,
   CartesianGrid,
 } from 'recharts';
-import { Badge } from '@/components/ui/badge';
-import { useMenuItems, useOrders, usePurchases } from '@/hooks/api';
-import { Award, Utensils, ArrowUpRight, ChevronDown } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { useOrders, usePurchases } from '@/hooks/api';
+import { ChevronDown } from 'lucide-react';
 import { isServedOrder } from '@/lib/utils';
 import { FoodMap } from './FoodMap';
-import { summarizeFoodSales } from '@/lib/food-sales';
+import { OrderBreakdown } from './OrderBreakdown';
 
 const currency = new Intl.NumberFormat('en-IN', {
   style: 'currency',
@@ -25,7 +23,6 @@ const currency = new Intl.NumberFormat('en-IN', {
 export function AnalyticsCharts() {
   const { data: orders = [] } = useOrders();
   const { data: purchases = [] } = usePurchases();
-  const { data: menu = [] } = useMenuItems();
   const servedOrders = useMemo(() => orders.filter(isServedOrder), [orders]);
 
   const [timeFilter, setTimeFilter] = useState<'Monthly' | 'Weekly'>('Monthly');
@@ -42,10 +39,6 @@ export function AnalyticsCharts() {
       0,
     );
   }, [purchases]);
-
-  const top3Selling = useMemo(() => summarizeFoodSales(servedOrders).slice(0, 3), [servedOrders]);
-
-  const maxQuantity = top3Selling[0]?.quantity || 1;
 
   // Real Monthly & Weekly Revenue Data (Income vs Expense)
   const revenueChartData = useMemo(() => {
@@ -116,12 +109,6 @@ export function AnalyticsCharts() {
     );
     return highest > 0 ? Math.ceil(highest * 1.2) : 1000;
   }, [revenueChartData]);
-
-  const rankBadges = [
-    { label: '#1', color: 'bg-amber-500/10 text-amber-600 border-amber-500/30' },
-    { label: '#2', color: 'bg-slate-500/10 text-slate-600 border-slate-500/30' },
-    { label: '#3', color: 'bg-orange-500/10 text-orange-600 border-orange-500/30' },
-  ];
 
   return (
     <div className="space-y-6 mb-8">
@@ -269,91 +256,7 @@ export function AnalyticsCharts() {
         <FoodMap orders={servedOrders} />
       </div>
 
-      {/* ── ROW 2: TOP 3 SELLING FOOD LEADERBOARD ── */}
-      <div className="card-premium p-6">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <Award className="size-5 text-amber-500" />
-            <h3 className="font-display font-bold text-base text-slate-900 tracking-tight">
-              Top 3 Selling Food
-            </h3>
-          </div>
-          <Link
-            to="/orders"
-            className="text-xs font-semibold text-[#e11d48] hover:underline flex items-center gap-1"
-          >
-            Go to Orders <ArrowUpRight className="size-3.5" />
-          </Link>
-        </div>
-
-        <p className="text-xs text-slate-400 mb-5">
-          Most ordered culinary items ranked by total portion count
-        </p>
-
-        {top3Selling.length === 0 ? (
-          <div className="py-8 text-center space-y-2">
-            <Utensils className="mx-auto size-8 text-slate-300" />
-            <p className="text-sm font-medium text-slate-600">No orders placed yet</p>
-            <p className="text-xs text-slate-400">
-              Dishes ordered in the Orders section will automatically appear here.
-            </p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {top3Selling.map((food, index) => {
-              const percent = Math.min(Math.round((food.quantity / maxQuantity) * 100), 100);
-              return (
-                <div
-                  key={food.id}
-                  className="flex items-center gap-3.5 p-3 rounded-xl border border-slate-100 bg-slate-50/50 hover:bg-slate-50 transition-colors"
-                >
-                  <img
-                    src={menu.find((dish) => dish.id === food.id || dish.name === food.name)?.image_url || '/placeholder.svg'}
-                    alt={food.name}
-                    className="size-14 rounded-xl object-cover border border-slate-200 shrink-0 shadow-xs"
-                    onError={(e) => {
-                      (e.target as HTMLElement).style.display = 'none';
-                    }}
-                  />
-                  <div className="flex-1 min-w-0 space-y-1">
-                    <div className="flex items-center justify-between gap-1">
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <Badge
-                          variant="outline"
-                          className={`text-[10px] px-1.5 py-0 font-bold shrink-0 ${rankBadges[index]?.color}`}
-                        >
-                          {rankBadges[index]?.label}
-                        </Badge>
-                        <span className="font-semibold text-xs text-slate-800 truncate">
-                          {food.name}
-                        </span>
-                      </div>
-                      <span className="font-bold text-xs tabular-nums text-[#e11d48] shrink-0">
-                        {food.quantity} sold
-                      </span>
-                    </div>
-
-                    {/* Progress Bar */}
-                    <div className="h-1.5 w-full bg-slate-200 rounded-full overflow-hidden">
-                      <div
-                        className="h-full rounded-full bg-[#e11d48] transition-all duration-500"
-                        style={{ width: `${percent}%` }}
-                      />
-                    </div>
-
-                    <div className="flex items-center justify-between text-[10px] text-slate-400">
-                      <span>{food.category}</span>
-                      <span className="font-medium text-slate-600">
-                        {currency.format(food.revenue)}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
+      <OrderBreakdown orders={orders} />
     </div>
   );
 }

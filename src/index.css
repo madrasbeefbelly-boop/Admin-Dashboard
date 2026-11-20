@@ -436,8 +436,8 @@
 
   .stat-card-chart {
     align-self: end;
-    width: clamp(2.25rem, 9vw, 5rem);
-    height: 1.5rem;
+    width: clamp(2.75rem, 11vw, 6.25rem);
+    height: 1.875rem;
     overflow: visible;
   }
 
@@ -495,8 +495,8 @@
   }
 
   .summary-counts .stat-card-chart {
-    width: clamp(1.5rem, 7vw, 3.25rem);
-    height: 1.375rem;
+    width: clamp(1.75rem, 8.5vw, 4rem);
+    height: 1.625rem;
   }
 
   .mobile-records,
