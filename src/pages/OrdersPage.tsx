@@ -340,12 +340,8 @@ export default function OrdersPage() {
                               {order.status || 'Completed'}
                             </Badge>
                           </div>
-                          <p className="text-xs text-muted-foreground mt-1">
-                            {Array.isArray(order.items) && order.items.length > 0
-                              ? order.items.map((i: any) => `${i.name} ×${i.quantity}`).join(' · ')
-                              : 'No item breakdown'}
-                          </p>
-                          <p className="text-[11px] text-muted-foreground/70 mt-1">
+
+                          <p className="text-[11px] text-muted-foreground mt-0.5">
                             {order.created_at ? (
                               <>
                                 {new Date(order.created_at).toLocaleString('en-IN', {
@@ -363,6 +359,26 @@ export default function OrdersPage() {
                               'Recently placed'
                             )}
                           </p>
+
+                          {Array.isArray(order.items) && order.items.length > 0 ? (
+                            <ul className="mt-2.5 space-y-1 text-xs border-l-2 border-gold/30 pl-2.5">
+                              {order.items.map((i: any, idx: number) => (
+                                <li key={idx} className="flex items-center justify-between gap-3 text-muted-foreground">
+                                  <span>
+                                    {i.name}{' '}
+                                    <span className="font-semibold text-foreground">×{i.quantity}</span>
+                                  </span>
+                                  {Number(i.line_total ?? (i.unit_price * i.quantity)) > 0 && (
+                                    <span className="tabular-nums shrink-0">
+                                      ₹{Number(i.line_total ?? (i.unit_price * i.quantity)).toFixed(2)}
+                                    </span>
+                                  )}
+                                </li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <p className="text-xs text-muted-foreground mt-1">No item breakdown</p>
+                          )}
                         </div>
                         <div className="text-right shrink-0">
                           <p className="font-semibold text-gold tabular-nums text-base">
