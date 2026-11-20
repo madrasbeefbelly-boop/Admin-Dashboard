@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
+import { StatCard } from '@/components/dashboard/StatCard';
+import { statSeries } from '@/lib/stat-series';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -171,7 +173,9 @@ export default function MenuPage() {
   // Calculate summary stats
   const avgMargin = averageMenuMargin(menuItems);
   const totalItems = menuItems.length;
-  const activeItems = menuItems.filter((i) => i.is_available && i.selling_price != null).length;
+  const pricedItems = menuItems.filter((item) => item.is_available && item.selling_price != null);
+  const marginSeries = categories.map((category) => averageMenuMargin(menuItems.filter((item) => item.category === category)))
+    .filter((margin): margin is number => margin != null && Number.isFinite(margin));
 
   const openDishForm = (item: MenuCatalogItem | null = null) => {
     setEditing(item);
@@ -261,43 +265,13 @@ export default function MenuPage() {
 
   return (
     <DashboardLayout title="Menu & Costing" subtitle="Manage your dishes and pricing">
-      {/* Stats Summary */}
       <div className="summary-counts mb-6 grid grid-cols-3 gap-2 md:gap-4">
-        <div className="stat-card">
-          <div className="flex items-center gap-3">
-            <div className="size-10 rounded-xl bg-rose-50 flex items-center justify-center">
-              <UtensilsCrossed className="size-5 text-[#e11d48]" />
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground font-medium">Total Dishes</p>
-              <p className="font-display text-2xl font-bold text-slate-900">{totalItems}</p>
-            </div>
-          </div>
-        </div>
-        <div className="stat-card">
-          <div className="flex items-center gap-3">
-            <div className="size-10 rounded-xl bg-emerald-50 flex items-center justify-center">
-              <TrendingUp className="size-5 text-emerald-600" />
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground font-medium">Avg Margin</p>
-              <p className="font-display text-2xl font-bold text-slate-900">
-                {avgMargin == null ? '—' : avgMargin.toFixed(0) + '%'}
-              </p>
-            </div>
-          </div>
-        </div>
-        <div className="stat-card">
-          <div className="flex items-center gap-3">
-            <div className="size-10 rounded-xl bg-sky-50 flex items-center justify-center">
-              <UtensilsCrossed className="size-5 text-sky-600" />
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground font-medium">Priced Dishes</p>
-              <p className="font-display text-2xl font-bold text-slate-900">{activeItems}</p>
-            </div>
-          </div>
-        </div>
+        <StatCard title="Total Dishes" value={totalItems} icon={UtensilsCrossed}
+          dataPoints={statSeries(menuItems, (item) => item.category)} chartLabel="Dishes by category" />
+        <StatCard title="Avg Margin" value={avgMargin == null ? '—' : avgMargin.toFixed(0) + '%'} icon={TrendingUp}
+          accent="text-emerald-600" dataPoints={marginSeries} chartLabel="Average margin by category" />
+        <StatCard title="Priced Dishes" value={pricedItems.length} icon={UtensilsCrossed}
+          accent="text-sky-600" dataPoints={statSeries(pricedItems, (item) => item.category)} chartLabel="Priced dishes by category" />
       </div>
 
       {/* Filters & View Toggle Bar */}

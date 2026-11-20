@@ -329,7 +329,6 @@ export const useUpdateOrderStatus = () => {
       queryClient.invalidateQueries({ queryKey: ['inventory'] });
       queryClient.invalidateQueries({ queryKey: ['lowStockItems'] });
       queryClient.invalidateQueries({ queryKey: ['dashboardStats'] });
-      queryClient.invalidateQueries({ queryKey: ['inventoryMovements'] });
       queryClient.invalidateQueries({ queryKey: ['orderRequirements', id] });
       queryClient.invalidateQueries({ queryKey: ['menuItems'] });
     },
@@ -348,25 +347,14 @@ export const useOrderRequirements = (orderId: string | null | undefined) => {
   });
 };
 
-export const useInventoryMovements = () => {
-  return useQuery({
-    queryKey: ['inventoryMovements'],
-    queryFn: async () => {
-      const response = await inventoryAPI.getMovements();
-      return response.data.data;
-    },
-  });
-};
-
 export const useAdjustStock = () => {
   const queryClient = useQueryClient();
-  return useMutation<any, Error, { id: string; quantity_change: number; movement_type?: string; notes?: string }>({
+  return useMutation<any, Error, { id: string; quantity_change: number }>({
     mutationFn: ({ id, ...data }) => inventoryAPI.adjustStock(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['inventory'] });
       queryClient.invalidateQueries({ queryKey: ['lowStockItems'] });
       queryClient.invalidateQueries({ queryKey: ['dashboardStats'] });
-      queryClient.invalidateQueries({ queryKey: ['inventoryMovements'] });
       queryClient.invalidateQueries({ queryKey: ['menuItems'] });
     },
   });

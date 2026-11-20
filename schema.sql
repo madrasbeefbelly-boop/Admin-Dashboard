@@ -215,22 +215,6 @@ CREATE TABLE order_items (
 
 CREATE INDEX idx_order_items_order_id ON order_items(order_id);
 
-CREATE TABLE inventory_movements (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  business_id UUID REFERENCES businesses(id) ON DELETE CASCADE,
-  inventory_item_id UUID NOT NULL REFERENCES inventory_items(id),
-  order_id UUID REFERENCES orders(id) ON DELETE SET NULL,
-  movement_type VARCHAR(50) NOT NULL,
-  quantity NUMERIC(12, 4) NOT NULL,
-  unit VARCHAR(50) NOT NULL,
-  previous_stock NUMERIC(12, 4) NOT NULL,
-  new_stock NUMERIC(12, 4) NOT NULL,
-  notes TEXT,
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE INDEX idx_inventory_movements_order_id ON inventory_movements(order_id);
-
 CREATE TABLE order_ingredient_consumptions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   order_id UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
@@ -241,6 +225,7 @@ CREATE TABLE order_ingredient_consumptions (
   quantity_deducted NUMERIC(12, 4) NOT NULL,
   unit VARCHAR(50) NOT NULL,
   cost_at_deduction NUMERIC(12, 4),
+  cost_unit VARCHAR(50),
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -297,29 +282,6 @@ CREATE TABLE purchase_items (
 
 CREATE INDEX idx_purchase_items_purchase_id ON purchase_items(purchase_id);
 CREATE INDEX idx_purchase_items_inventory_item_id ON purchase_items(inventory_item_id);
-
--- ============================================================================
--- STOCK_MOVEMENTS TABLE (Audit trail)
--- ============================================================================
-CREATE TABLE stock_movements (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  business_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
-  inventory_item_id UUID NOT NULL REFERENCES inventory_items(id),
-  movement_type VARCHAR(50) NOT NULL,
-  quantity_change DECIMAL(12, 4) NOT NULL,
-  previous_stock DECIMAL(12, 4),
-  new_stock DECIMAL(12, 4),
-  reference_id VARCHAR(100),
-  reference_type VARCHAR(50),
-  created_by UUID REFERENCES users(id),
-  notes TEXT,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE INDEX idx_stock_movements_business_id ON stock_movements(business_id);
-CREATE INDEX idx_stock_movements_inventory_item_id ON stock_movements(inventory_item_id);
-CREATE INDEX idx_stock_movements_created_at ON stock_movements(created_at);
-CREATE INDEX idx_stock_movements_movement_type ON stock_movements(movement_type);
 
 -- ============================================================================
 -- ROLES TABLE (v2.1 - Role-based access control)

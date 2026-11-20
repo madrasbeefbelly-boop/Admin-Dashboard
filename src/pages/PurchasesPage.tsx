@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
+import { StatCard } from '@/components/dashboard/StatCard';
+import { purchaseAmount, purchaseDay, statSeries } from '@/lib/stat-series';
 import { usePurchases, useCreatePurchase, useInventory, useSuppliers, useCreateSupplier, useDeletePurchase, useDeleteSupplier } from '@/hooks/api';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -68,10 +70,12 @@ export default function PurchasesPage() {
   );
 
   // Stats
-  const totalSpent = purchases.reduce((acc, p) => acc + ((p.quantity || 0) * (p.unit_price || 0)), 0);
-  const thisMonthSpent = purchases
-    .filter(p => new Date(p.purchase_date).getMonth() === new Date().getMonth())
-    .reduce((acc, p) => acc + ((p.quantity || 0) * (p.unit_price || 0)), 0);
+  const currentMonth = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(new Date()).slice(0, 7);
+  const thisMonth = purchases.filter((item) => purchaseDay(item).startsWith(currentMonth));
+  const totalSpent = purchases.reduce((total, item) => total + purchaseAmount(item), 0);
+  const thisMonthSpent = thisMonth.reduce((total, item) => total + purchaseAmount(item), 0);
 
   const handleAddSupplier = async () => {
     if (!supplierFormData.name) {
@@ -379,41 +383,13 @@ export default function PurchasesPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Stats Summary */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <div className="stat-card">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gold/10 flex items-center justify-center">
-              <ShoppingCart className="w-5 h-5 text-gold" />
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Total Purchases</p>
-              <p className="font-display text-2xl font-semibold">{purchases.length}</p>
-            </div>
-          </div>
-        </div>
-        <div className="stat-card">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-warning/10 flex items-center justify-center">
-              <TrendingDown className="w-5 h-5 text-warning" />
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">This Month</p>
-              <p className="font-display text-2xl font-semibold">₹{(thisMonthSpent / 1000).toFixed(0)}K</p>
-            </div>
-          </div>
-        </div>
-        <div className="stat-card">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-info/10 flex items-center justify-center">
-              <Calendar className="w-5 h-5 text-info" />
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Total Spent</p>
-              <p className="font-display text-2xl font-semibold">₹{(totalSpent / 1000).toFixed(0)}K</p>
-            </div>
-          </div>
-        </div>
+      <div className="summary-counts mb-6 grid grid-cols-3 gap-2 md:gap-4">
+        <StatCard title="Total Purchases" value={purchases.length} icon={ShoppingCart}
+          dataPoints={statSeries(purchases, purchaseDay)} chartLabel="Purchases by day" />
+        <StatCard title="This Month" value={`₹${(thisMonthSpent / 1000).toFixed(0)}K`} icon={TrendingDown}
+          accent="text-warning" dataPoints={statSeries(thisMonth, purchaseDay, purchaseAmount)} chartLabel="This month's spending by day" />
+        <StatCard title="Total Spent" value={`₹${(totalSpent / 1000).toFixed(0)}K`} icon={Calendar}
+          accent="text-info" dataPoints={statSeries(purchases, purchaseDay, purchaseAmount)} chartLabel="Total spending by day" />
       </div>
 
       {/* Filters */}

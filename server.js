@@ -413,7 +413,7 @@ function convertQuantity(quantity, fromUnit, toUnit) {
   throw new Error(`Incompatible measurement units: cannot convert from "${fromUnit}" to "${toUnit}".`);
 }
 
-// Inventory and movement quantities are stored to four decimal places.
+// Inventory quantities are stored to four decimal places.
 const stockQuantity = (quantity) => Number(quantity.toFixed(4));
 
 function orderIngredientRequirements(recipeRows, inventory) {
@@ -811,17 +811,6 @@ app.post('/api/inventory', async (req, res) => {
 
     const newItem = result.rows[0];
 
-    // Log initial stock movement if quantity > 0
-    if (initialStock > 0) {
-      await client.query(`
-        INSERT INTO inventory_movements (
-          business_id, inventory_item_id, movement_type, 
-          quantity, unit, previous_stock, new_stock, notes
-        )
-        VALUES ($1, $2, 'Initial Stock', $3, $4, 0, $3, 'Initial inventory registration')
-      `, [businessId, newItem.id, initialStock, newItem.unit]);
-    }
-
     await client.query('COMMIT');
 
     res.status(201).json({ 
@@ -872,7 +861,7 @@ app.put('/api/inventory/:id', async (req, res) => {
 
 // ADJUST / RESTOCK stock
 app.post('/api/inventory/:id/adjust', async (req, res) => {
-  const { quantity_change, movement_type, notes } = req.body;
+  const { quantity_change } = req.body;
   const change = Number(quantity_change);
 
   if (isNaN(change) || change === 0) {
@@ -911,19 +900,6 @@ app.post('/api/inventory/:id/adjust', async (req, res) => {
       RETURNING *
     `, [newStock, req.params.id]);
 
-    const moveType = movement_type || (change > 0 ? 'Restock' : 'Adjustment');
-
-    await client.query(`
-      INSERT INTO inventory_movements (
-        business_id, inventory_item_id, movement_type, 
-        quantity, unit, previous_stock, new_stock, notes
-      )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-    `, [
-      item.business_id, req.params.id, moveType,
-      change, item.unit, previousStock, newStock, notes || `${moveType}: ${change > 0 ? '+' : ''}${change} ${item.unit}`
-    ]);
-
     await client.query('COMMIT');
 
     res.json({ 
@@ -942,7 +918,7 @@ app.post('/api/inventory/:id/adjust', async (req, res) => {
 
 // UPDATE stock (PUT compatibility)
 app.put('/api/inventory/:id/stock', async (req, res) => {
-  const { quantity, movement_type, reference_id, notes } = req.body;
+  const { quantity } = req.body;
   const change = Number(quantity);
 
   const client = await pool.connect();
@@ -977,16 +953,6 @@ app.put('/api/inventory/:id/stock', async (req, res) => {
       RETURNING *
     `, [newStock, req.params.id]);
 
-    const moveType = movement_type || (change > 0 ? 'Restock' : 'Adjustment');
-
-    await client.query(`
-      INSERT INTO inventory_movements (
-        business_id, inventory_item_id, movement_type, 
-        quantity, unit, previous_stock, new_stock, notes
-      )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-    `, [item.business_id, req.params.id, moveType, change, item.unit, previousStock, newStock, notes || `Stock update: ${reference_id || ''}`]);
-
     await client.query('COMMIT');
 
     res.json({ 
@@ -1000,28 +966,6 @@ app.put('/api/inventory/:id/stock', async (req, res) => {
     res.status(500).json({ success: false, error: error.message });
   } finally {
     client.release();
-  }
-});
-
-// GET all inventory movements
-app.get('/api/inventory/movements', async (req, res) => {
-  try {
-    const result = await pool.query(`
-      SELECT 
-        im.id, im.inventory_item_id, im.order_id, im.movement_type, 
-        im.quantity, im.unit, im.previous_stock, im.new_stock, im.notes, im.created_at,
-        ii.name as ingredient_name, ii.category,
-        COALESCE(o.order_ref, o.order_number) as order_ref
-      FROM inventory_movements im
-      JOIN inventory_items ii ON im.inventory_item_id = ii.id
-      LEFT JOIN orders o ON im.order_id = o.id
-      ORDER BY im.created_at DESC
-      LIMIT 100
-    `);
-    res.json({ success: true, data: result.rows });
-  } catch (error) {
-    console.error('Error fetching inventory movements:', error);
-    res.status(500).json({ success: false, error: error.message });
   }
 });
 
@@ -1651,25 +1595,19 @@ app.get('/api/orders', async (req, res) => {
         itemsByOrder[item.order_id].push(item);
       }
       const costRows = await pool.query(`
-        SELECT c.order_item_id, c.quantity_deducted, c.unit, c.cost_at_deduction, m.stock_unit
-        FROM order_ingredient_consumptions c
-        LEFT JOIN (
-          SELECT order_id, inventory_item_id, MIN(unit) as stock_unit
-          FROM inventory_movements
-          WHERE order_id = ANY($1::uuid[]) AND movement_type = 'order_deduction'
-          GROUP BY order_id, inventory_item_id
-        ) m ON m.order_id = c.order_id AND m.inventory_item_id = c.inventory_item_id
-        WHERE c.order_id = ANY($1::uuid[])
+        SELECT order_item_id, quantity_deducted, unit, cost_at_deduction, cost_unit
+        FROM order_ingredient_consumptions
+        WHERE order_id = ANY($1::uuid[])
       `, [ids]);
       const costs = new Map();
       for (const row of costRows.rows) {
         if (costs.has(row.order_item_id) && costs.get(row.order_item_id) === null) continue;
         try {
-          if (row.cost_at_deduction == null || !row.stock_unit) {
+          if (row.cost_at_deduction == null || !row.cost_unit) {
             costs.set(row.order_item_id, null);
             continue;
           }
-          const quantity = convertQuantity(row.quantity_deducted, row.unit, row.stock_unit);
+          const quantity = convertQuantity(row.quantity_deducted, row.unit, row.cost_unit);
           costs.set(row.order_item_id, (costs.get(row.order_item_id) ?? 0) + quantity * Number(row.cost_at_deduction));
         } catch {
           costs.set(row.order_item_id, null);
@@ -1859,31 +1797,15 @@ const updateOrderStatusHandler = async (req, res) => {
         });
       }
 
-      const reference = order.order_ref || order.order_number || orderId;
-      const notes = `Recipe deduction for order ${reference}`;
       for (const { item, quantity, consumptions } of requirements) {
-        const previous = Number(item.current_stock);
-        const remaining = stockQuantity(previous - quantity);
+        const remaining = stockQuantity(Number(item.current_stock) - quantity);
         await client.query('UPDATE inventory_items SET current_stock = $1, updated_at = NOW() WHERE id = $2', [remaining, item.id]);
-        await client.query(`
-          INSERT INTO inventory_movements (
-            business_id, inventory_item_id, order_id, movement_type, quantity, unit, previous_stock, new_stock, notes
-          )
-          VALUES ($1, $2, $3, 'order_deduction', $4, $5, $6, $7, $8)
-        `, [order.business_id, item.id, orderId, -quantity, item.unit, previous, remaining, notes]);
-        await client.query(`
-          INSERT INTO stock_movements (
-            business_id, inventory_item_id, movement_type, quantity_change, previous_stock, new_stock, reference_id, reference_type, notes
-          )
-          VALUES ($1, $2, 'Consumption', $3, $4, $5, $6, 'Order', $7)
-        `, [order.business_id, item.id, -quantity, previous, remaining, reference, notes]);
-
         for (const line of consumptions) {
           await client.query(`
             INSERT INTO order_ingredient_consumptions (
-              order_id, order_item_id, menu_item_id, inventory_item_id, ingredient_name, quantity_deducted, unit, cost_at_deduction
+              order_id, order_item_id, menu_item_id, inventory_item_id, ingredient_name, quantity_deducted, unit, cost_at_deduction, cost_unit
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $7)
           `, [orderId, line.order_item_id, line.menu_item_id, item.id, item.name, line.quantity, item.unit, item.cost_per_unit]);
         }
       }

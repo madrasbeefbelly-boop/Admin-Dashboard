@@ -666,7 +666,6 @@ UNION ALL SELECT 'order_items', COUNT(*) FROM order_items
 UNION ALL SELECT 'purchases', COUNT(*) FROM purchases
 UNION ALL SELECT 'purchase_items', COUNT(*) FROM purchase_items
 UNION ALL SELECT 'payments', COUNT(*) FROM payments
-UNION ALL SELECT 'stock_movements', COUNT(*) FROM stock_movements
 UNION ALL SELECT 'notifications', COUNT(*) FROM notifications
 UNION ALL SELECT 'audit_logs', COUNT(*) FROM audit_logs
 UNION ALL SELECT 'menu_item_ingredients', COUNT(*) FROM menu_item_ingredients
@@ -1123,31 +1122,6 @@ CREATE INDEX idx_purchase_items_purchase_id ON purchase_items(purchase_id);
 CREATE INDEX idx_purchase_items_inventory_item_id ON purchase_items(inventory_item_id);
 ```
 
-### 12. STOCK_MOVEMENTS TABLE (Audit Trail)
-Tracks all inventory changes for audit purposes.
-
-```sql
-CREATE TABLE stock_movements (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  business_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
-  inventory_item_id UUID NOT NULL REFERENCES inventory_items(id),
-  movement_type VARCHAR(50) NOT NULL, -- Purchase, Sale, Adjustment, Waste, Return
-  quantity_change DECIMAL(10, 2) NOT NULL,
-  previous_stock DECIMAL(10, 2),
-  new_stock DECIMAL(10, 2),
-  reference_id VARCHAR(100), -- Order ID or Purchase ID
-  reference_type VARCHAR(50), -- Order, Purchase, Adjustment
-  created_by UUID REFERENCES users(id),
-  notes TEXT,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE INDEX idx_stock_movements_business_id ON stock_movements(business_id);
-CREATE INDEX idx_stock_movements_inventory_item_id ON stock_movements(inventory_item_id);
-CREATE INDEX idx_stock_movements_created_at ON stock_movements(created_at);
-CREATE INDEX idx_stock_movements_movement_type ON stock_movements(movement_type);
-```
-
 ### 13. NOTIFICATIONS TABLE (For v1.1+)
 Stores notification history for alerts.
 
@@ -1413,7 +1387,7 @@ ORDER BY total_profit DESC;
 ## Scalability & Performance Tips
 
 1. **Indexing**: All common queries are indexed. Add more as needed.
-2. **Partitioning**: Consider partitioning `orders` and `stock_movements` by date for very large datasets.
+2. **Partitioning**: Consider partitioning `orders` by date for very large datasets.
 3. **Read Replicas**: For reporting queries, use read-only replicas.
 4. **Caching**: Cache frequently accessed data (menu items, suppliers).
 5. **Archive**: Archive old orders (>2 years) to separate table.

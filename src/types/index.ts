@@ -41,22 +41,6 @@ export interface InventoryItem {
   is_active?: boolean;
 }
 
-export interface InventoryMovement {
-  id: string;
-  inventory_item_id: string;
-  order_id?: string | null;
-  movement_type: string;
-  quantity: number;
-  unit: string;
-  previous_stock: number;
-  new_stock: number;
-  notes?: string | null;
-  created_at: string;
-  ingredient_name?: string;
-  category?: string;
-  order_ref?: string | null;
-}
-
 export interface LowStockItem {
   id: string;
   name: string;

@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useMenuItems, useOrders, usePurchases } from '@/hooks/api';
 import { averageMenuMargin, cn, isServedOrder } from '@/lib/utils';
+import { purchaseAmount, purchaseDay, statSeries } from '@/lib/stat-series';
 import type { Order } from '@/types';
 
 const currency = new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' });
@@ -73,14 +74,16 @@ export default function ProfitPage() {
   const missing = dishes.length - ranked.length;
   const shown = showLosses ? losses : dishes;
 
-  const purchaseCosts = (purchases.data ?? []).reduce(
-    (total, item) => total + Number(item.quantity ?? 0) * Number(item.unit_price ?? 0), 0,
-  );
+  const purchaseCosts = (purchases.data ?? []).reduce((total, item) => total + purchaseAmount(item), 0);
   const hasManual = manualSales !== '' && Number.isFinite(Number(manualSales)) && Number(manualSales) >= 0;
   const hasRevenue = hasManual || served.length > 0;
   const revenue = hasManual ? Number(manualSales) : served.reduce((total, order) => total + Number(order.total_amount), 0);
   const estimate = revenue - purchaseCosts;
   const averageMargin = averageMenuMargin(menu.data ?? []);
+  const dailySales = served.map((order) => ({ day: businessDate.format(new Date(order.created_at)), amount: Number(order.total_amount) }));
+  const dailyExpenses = (purchases.data ?? []).map((item) => ({ day: purchaseDay(item), amount: -purchaseAmount(item) }));
+  const dailyAmounts = (items: { day: string; amount: number }[]) => statSeries(items, (item) => item.day, (item) => item.amount);
+  const margins = (menu.data ?? []).filter((item) => item.margin_percent != null).map((item) => Number(item.margin_percent)).filter(Number.isFinite);
 
   return (
     <DashboardLayout title="Profit Calculator" subtitle="Compare the revenue and ingredient costs of the dishes you sell">
@@ -200,11 +203,15 @@ export default function ProfitPage() {
               <h2 id="business-estimate-title" className="text-xl font-semibold">All-time business estimate</h2>
               <p className="mt-1 text-sm text-muted-foreground">Sales less logged purchases. Operating expenses are excluded.</p>
             </div>
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              <StatCard title="Sales Revenue" value={hasRevenue ? currency.format(revenue) : '—'} icon={TrendingUp} />
-              <StatCard title="Logged Purchase Costs" value={currency.format(purchaseCosts)} icon={Receipt} />
-              <StatCard title={estimate < 0 && hasRevenue ? 'Estimated Loss' : 'Estimated Profit'} value={hasRevenue ? currency.format(estimate) : '—'} icon={Calculator} />
-              <StatCard title="Average Menu Margin" value={averageMargin == null ? '—' : averageMargin.toFixed(1) + '%'} icon={Percent} />
+            <div className="grid grid-cols-2 gap-3 md:gap-4 xl:grid-cols-4">
+              <StatCard title="Sales Revenue" value={hasRevenue ? currency.format(revenue) : '—'} icon={TrendingUp}
+                dataPoints={hasManual ? [] : dailyAmounts(dailySales)} chartLabel="Recorded sales by day" />
+              <StatCard title="Logged Purchase Costs" value={currency.format(purchaseCosts)} icon={Receipt}
+                dataPoints={statSeries(purchases.data ?? [], purchaseDay, purchaseAmount)} chartLabel="Logged purchase costs by day" />
+              <StatCard title={estimate < 0 && hasRevenue ? 'Estimated Loss' : 'Estimated Profit'} value={hasRevenue ? currency.format(estimate) : '—'} icon={Calculator}
+                dataPoints={hasManual || !hasRevenue ? [] : dailyAmounts([...dailySales, ...dailyExpenses])} chartLabel="Estimated profit or loss by day" />
+              <StatCard title="Average Menu Margin" value={averageMargin == null ? '—' : averageMargin.toFixed(1) + '%'} icon={Percent}
+                dataPoints={margins} chartLabel="Margins by dish" />
             </div>
             <div className="card-premium max-w-xl p-5">
               <Label htmlFor="profit-sales">Override all-time sales revenue (₹)</Label>

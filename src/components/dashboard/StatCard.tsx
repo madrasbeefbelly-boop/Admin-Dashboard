@@ -1,16 +1,14 @@
-import { LucideIcon } from 'lucide-react';
+import { useId } from 'react';
+import type { LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export interface StatCardProps {
   title: string;
   value: string | number;
-  badge?: {
-    value: string;
-    isPositive?: boolean;
-  };
   icon: LucideIcon;
   dataPoints?: number[];
-  className?: string;
+  chartLabel?: string;
+  accent?: string;
 }
 
 /**
@@ -58,79 +56,39 @@ function pointsToPath(points: number[] = [], width = 200, height = 40): { path: 
   return { path, fillPath };
 }
 
-export function StatCard({
-  title,
-  value,
-  badge,
-  icon: Icon,
-  dataPoints = [],
-  className,
-}: StatCardProps) {
-  const { path: pathD, fillPath: fillPathD } = pointsToPath(dataPoints);
+export function StatCard({ title, value, icon: Icon, dataPoints = [], chartLabel, accent = 'text-primary' }: StatCardProps) {
+  const { path, fillPath } = pointsToPath(dataPoints);
+  const gradientId = useId();
+  const hasData = dataPoints.length > 0;
 
   return (
-    <div
-      className={cn(
-        'stat-card flex flex-col justify-between overflow-hidden relative group',
-        className
-      )}
-    >
-      <div className="flex items-start justify-between">
-        {/* Metric Value & Title */}
-        <div className="stat-card-metric">
-          <div className="flex items-center gap-2">
-            <span className="stat-card-value font-display text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 tabular-nums">
-              {typeof value === 'number' ? value.toLocaleString() : value}
-            </span>
-            {badge && (
-              <span
-                className={cn(
-                  'text-[11px] font-bold px-1.5 py-0.5 rounded-md inline-flex items-center',
-                  badge.isPositive !== false
-                    ? 'text-emerald-600 bg-emerald-50'
-                    : 'text-rose-600 bg-rose-50'
-                )}
-              >
-                {badge.value}
-              </span>
-            )}
-          </div>
-          <p className="text-xs font-medium text-muted-foreground mt-1 capitalize">{title}</p>
-        </div>
-
-        {/* Top-Right Outline Icon */}
-        <div className="text-rose-500/80 p-1.5 rounded-xl transition-colors group-hover:text-rose-600">
-          <Icon className="size-6 stroke-[1.8]" />
-        </div>
-      </div>
-
-      {/* Bottom Sparkline Wave derived from actual data */}
-      <div className="w-full pt-4 -mx-1 -mb-1 overflow-hidden">
-        <svg
-          viewBox="0 0 200 40"
-          preserveAspectRatio="none"
-          className="w-full h-8 sm:h-9 overflow-visible"
-        >
-          <defs>
-            <linearGradient id={`wave-gradient-${title.toLowerCase()}`} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#e11d48" stopOpacity={0.12} />
-              <stop offset="100%" stopColor="#e11d48" stopOpacity={0.0} />
-            </linearGradient>
-          </defs>
-          <path
-            d={fillPathD}
-            fill={`url(#wave-gradient-${title.toLowerCase()})`}
-          />
-          <path
-            d={pathD}
-            fill="none"
-            stroke="#e11d48"
-            strokeWidth="2.2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
-      </div>
+    <div className="stat-card">
+      <p className="stat-card-title">{title}</p>
+      <Icon aria-hidden="true" className={cn('stat-card-icon', accent)} />
+      <p className="stat-card-value font-display tabular-nums">
+        {typeof value === 'number' ? value.toLocaleString() : value}
+      </p>
+      <svg
+        className={cn('stat-card-chart', accent)}
+        viewBox="0 0 200 40"
+        preserveAspectRatio="none"
+        role="img"
+        aria-label={hasData ? chartLabel ?? `${title} trend` : 'No chart data yet'}
+      >
+        {hasData && (
+          <>
+            <defs>
+              <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="100%">
+                <stop stopColor="currentColor" stopOpacity=".16" />
+                <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
+              </linearGradient>
+            </defs>
+            <path d={fillPath} fill={`url(#${gradientId})`} />
+          </>
+        )}
+        <path d={path} fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"
+          strokeDasharray={hasData ? undefined : '2 3'} vectorEffect="non-scaling-stroke" />
+      </svg>
     </div>
   );
 }

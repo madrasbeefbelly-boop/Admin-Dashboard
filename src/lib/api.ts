@@ -55,11 +55,8 @@ export const inventoryAPI = {
   // Update stock
   updateStock: (id, data) => api.put(`/inventory/${id}/stock`, data),
 
-  // Adjust stock with history
+  // Adjust stock
   adjustStock: (id, data) => api.post(`/inventory/${id}/adjust`, data),
-
-  // Get stock movements history
-  getMovements: () => api.get('/inventory/movements'),
 
   // Delete inventory item
   delete: (id) => api.delete(`/inventory/${id}`),

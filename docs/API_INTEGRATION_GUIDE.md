@@ -287,9 +287,7 @@ For stock updates in the table, add an "Update Stock" action:
 const handleAddStock = async (itemId, quantity) => {
   try {
     await updateStock.mutateAsync(itemId, {
-      quantity,
-      movement_type: 'Received',
-      reference_id: 'manual-update'
+      quantity
     });
     toast.success('Stock updated');
   } catch (error) {
@@ -627,7 +625,6 @@ export default function InventoryPage() {
     try {
       await updateStock.mutateAsync(itemId, {
         quantity,
-        movement_type: 'Purchase',
       });
       toast.success('Stock updated!');
     } catch (error) {
