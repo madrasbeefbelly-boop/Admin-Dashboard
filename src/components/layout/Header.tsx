@@ -91,7 +91,7 @@ export function Header({ title, subtitle, hideMobileSubtitle }: HeaderProps) {
 
         {/* Right utility icons with real data counters only */}
         <div className="flex shrink-0 items-center gap-2 sm:gap-3">
-          <nav aria-label="Dashboard shortcuts" className="flex items-center gap-0.5 sm:gap-1">
+          <nav aria-label="Dashboard shortcuts" className="hidden items-center gap-1 md:flex">
             {dashboardNavigation.map(({ name, href, icon: Icon, headerVisibility }) => (
               <NavLink
                 key={href}

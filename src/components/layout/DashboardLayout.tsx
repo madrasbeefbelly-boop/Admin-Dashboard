@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { Header } from './Header';
+import { MobileBottomNav } from './MobileBottomNav';
 import { Sidebar } from './Sidebar';
 import { cn } from '@/lib/utils';
 
@@ -23,10 +24,11 @@ export function DashboardLayout({ children, title, subtitle, hideMobileSubtitle 
       <Sidebar collapsed={collapsed} onToggle={() => setCollapsed((value) => !value)} />
       <div className="min-w-0 flex flex-col min-h-dvh bg-[#fafafb]">
         <Header title={title} subtitle={subtitle} hideMobileSubtitle={hideMobileSubtitle} />
-        <main className="mx-auto w-full max-w-[96rem] flex-1 p-4 sm:p-6 xl:p-8">
+        <main className="mx-auto w-full max-w-[96rem] flex-1 px-4 pt-4 pb-[calc(5rem+env(safe-area-inset-bottom))] sm:px-6 sm:pt-6 md:pb-6 xl:p-8">
           {children}
         </main>
       </div>
+      <MobileBottomNav />
     </div>
   );
 }

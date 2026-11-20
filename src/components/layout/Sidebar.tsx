@@ -13,13 +13,15 @@ import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { useIsMobile } from '@/hooks/use-mobile';
 
-import { dashboardNavigation, newOrderTarget } from './navigation';
+import { dashboardNavigation, mobileDrawerLinks, newOrderTarget } from './navigation';
 
 function SidebarLinks({
   collapsed = false,
+  mobile = false,
   onNavigate,
 }: {
   collapsed?: boolean;
+  mobile?: boolean;
   onNavigate?: () => void;
 }) {
   const location = useLocation();
@@ -31,7 +33,7 @@ function SidebarLinks({
     <div className="flex h-full flex-col justify-between">
       <div>
         {/* Brand Header */}
-        <div className={cn('flex items-center justify-between pb-6 pt-1 px-1', collapsed && 'justify-center')}>
+        <div className={cn('flex items-center justify-between pb-6 pt-1 px-1', collapsed && 'justify-center', mobile && 'pr-8')}>
           <Link
             to="/"
             onClick={onNavigate}
@@ -55,7 +57,7 @@ function SidebarLinks({
 
         {/* Navigation Items */}
         <nav aria-label="Kitchen operations" className="space-y-1.5 py-2">
-          {dashboardNavigation.map(({ name, href, icon: Icon, hasBadge, hasChevron }) => {
+          {(mobile ? mobileDrawerLinks : dashboardNavigation).map(({ name, href, icon: Icon, hasBadge, hasChevron }) => {
             const isActive = location.pathname === href;
             return (
               <Link
@@ -69,7 +71,7 @@ function SidebarLinks({
                   'sidebar-link group',
                   collapsed && 'justify-center px-0',
                   isActive
-                    ? collapsed
+                    ? collapsed || mobile
                       ? 'bg-white text-[#e11d48] font-bold rounded-xl'
                       : 'koki-cutout-tab'
                     : 'text-white/85 hover:text-white hover:bg-white/15'
@@ -113,8 +115,7 @@ function SidebarLinks({
         </nav>
       </div>
 
-      {/* Bottom Promo / Action Box (Only when not collapsed) */}
-      {!collapsed && (
+      {!collapsed && !mobile && (
         <div className="pt-4 pb-2">
           <div className="bg-[#9f1239]/60 border border-white/15 rounded-2xl p-4 shadow-inner">
             <Link
@@ -184,11 +185,11 @@ function MobileSidebarDrawer() {
       </SheetTrigger>
       <SheetContent
         side="left"
-        className="w-[min(18rem,calc(100vw-2rem))] bg-[#e11d48] p-4 text-white border-none"
+        className="w-[min(18rem,calc(100vw-2rem))] overflow-y-auto border-none bg-[#e11d48] p-4 text-white [&>button:last-child]:right-2 [&>button:last-child]:top-2 [&>button:last-child]:grid [&>button:last-child]:size-11 [&>button:last-child]:place-items-center [&>button:last-child]:data-[state=open]:bg-transparent"
         aria-describedby={undefined}
       >
         <SheetTitle className="sr-only">Kitchen operations</SheetTitle>
-        <SidebarLinks onNavigate={() => setOpen(false)} />
+        <SidebarLinks mobile onNavigate={() => setOpen(false)} />
       </SheetContent>
     </Sheet>
   );
