@@ -272,35 +272,43 @@ export function AnalyticsCharts() {
               {top3Selling.map((food, index) => {
                 const percent = Math.min(Math.round((food.quantity / maxQuantity) * 100), 100);
                 return (
-                  <div key={food.name} className="space-y-1.5">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <Badge
-                          variant="outline"
-                          className={`text-xs px-1.5 py-0 font-bold shrink-0 ${rankBadges[index]?.color}`}
-                        >
-                          {rankBadges[index]?.label}
-                        </Badge>
-                        <span className="font-medium text-sm text-foreground truncate">
-                          {food.name}
+                  <div key={food.name} className="flex items-center gap-3">
+                    <img
+                      src={`/MBB - Images/${food.name}.jpg`}
+                      alt={food.name}
+                      className="size-12 rounded-lg object-cover border border-border/80 shrink-0"
+                      onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
+                    />
+                    <div className="flex-1 min-w-0 space-y-1.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Badge
+                            variant="outline"
+                            className={`text-xs px-1.5 py-0 font-bold shrink-0 ${rankBadges[index]?.color}`}
+                          >
+                            {rankBadges[index]?.label}
+                          </Badge>
+                          <span className="font-medium text-sm text-foreground truncate">
+                            {food.name}
+                          </span>
+                        </div>
+                        <span className="font-semibold text-sm tabular-nums text-gold shrink-0">
+                          {food.quantity} sold
                         </span>
                       </div>
-                      <span className="font-semibold text-sm tabular-nums text-gold shrink-0">
-                        {food.quantity} sold
-                      </span>
-                    </div>
 
-                    {/* Progress Bar */}
-                    <div className="h-2 w-full bg-secondary/60 rounded-full overflow-hidden">
-                      <div
-                        className="h-full rounded-full bg-gold transition-all duration-500"
-                        style={{ width: `${percent}%` }}
-                      />
-                    </div>
+                      {/* Progress Bar */}
+                      <div className="h-2 w-full bg-secondary/60 rounded-full overflow-hidden">
+                        <div
+                          className="h-full rounded-full bg-gold transition-all duration-500"
+                          style={{ width: `${percent}%` }}
+                        />
+                      </div>
 
-                    <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-                      <span>{food.category}</span>
-                      <span>{currency.format(food.revenue)} revenue</span>
+                      <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                        <span>{food.category}</span>
+                        <span>{currency.format(food.revenue)} revenue</span>
+                      </div>
                     </div>
                   </div>
                 );

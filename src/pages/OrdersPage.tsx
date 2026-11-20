@@ -181,9 +181,15 @@ export default function OrdersPage() {
                     const price = formatPrice(item.selling_price);
                     return (
                       <SelectItem key={item.id} value={item.id}>
-                        <span className="flex items-center justify-between gap-4 w-full">
-                          <span>{item.name}</span>
-                          <span className="text-muted-foreground tabular-nums">
+                        <span className="flex items-center gap-2.5 w-full">
+                          <img
+                            src={`/MBB - Images/${item.name}.jpg`}
+                            alt=""
+                            className="size-7 rounded object-cover shrink-0 border border-border/60"
+                            onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
+                          />
+                          <span className="truncate">{item.name}</span>
+                          <span className="text-muted-foreground tabular-nums ml-auto shrink-0">
                             {price != null ? `₹${price.toFixed(0)}` : '—'}
                           </span>
                         </span>
@@ -224,11 +230,17 @@ export default function OrdersPage() {
                 <div className="divide-y divide-border">
                   {cart.map((ci) => (
                     <div key={ci.menu_item_id} className="flex items-center gap-3 px-5 py-3">
+                      <img
+                        src={`/MBB - Images/${ci.name}.jpg`}
+                        alt=""
+                        className="size-11 rounded-lg object-cover shrink-0 border border-border/80"
+                        onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
+                      />
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium leading-tight [overflow-wrap:anywhere]">
                           {ci.name}
                         </p>
-                        <p className="text-xs text-muted-foreground tabular-nums">
+                        <p className="text-xs text-muted-foreground tabular-nums mt-0.5">
                           ₹{ci.unit_price.toFixed(0)} × {ci.quantity}
                         </p>
                       </div>
@@ -364,9 +376,15 @@ export default function OrdersPage() {
                             <ul className="mt-2.5 space-y-1 text-xs border-l-2 border-gold/30 pl-2.5">
                               {order.items.map((i: any, idx: number) => (
                                 <li key={idx} className="flex items-center justify-between gap-3 text-muted-foreground">
-                                  <span>
-                                    {i.name}{' '}
-                                    <span className="font-semibold text-foreground">×{i.quantity}</span>
+                                  <span className="flex items-center gap-2 min-w-0">
+                                    <img
+                                      src={`/MBB - Images/${i.name}.jpg`}
+                                      alt=""
+                                      className="size-6 rounded object-cover shrink-0 border border-border/60"
+                                      onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
+                                    />
+                                    <span className="truncate">{i.name}</span>{' '}
+                                    <span className="font-semibold text-foreground shrink-0">×{i.quantity}</span>
                                   </span>
                                   {Number(i.line_total ?? (i.unit_price * i.quantity)) > 0 && (
                                     <span className="tabular-nums shrink-0">

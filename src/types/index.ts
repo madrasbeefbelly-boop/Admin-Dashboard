@@ -9,6 +9,7 @@ export interface MenuCatalogItem {
   is_available: boolean;
   is_vegetarian: boolean;
   prep_time_minutes: number | null;
+  image_url?: string | null;
 }
 
 export interface LowStockItem {

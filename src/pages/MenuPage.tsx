@@ -313,36 +313,50 @@ export default function MenuPage() {
       {/* Menu Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {filteredItems.map((item) => (
-          <div key={item.id} className="card-premium p-5 group hover:border-gold/20 transition-all duration-300">
-            <div className="flex items-start justify-between mb-3">
-              <Badge className={cn("border", categoryColors[item.category])}>
-                {item.category}
-              </Badge>
-              <div className="flex items-center gap-1">
-                <Button variant="ghost" size="icon" className="h-7 w-7 max-md:size-11" aria-label={"Edit " + item.name} onClick={() => openDishForm(item)}>
-                  <Pencil className="size-3.5" />
-                </Button>
-                <Button
-                  aria-label={"Delete " + item.name}
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 max-md:size-11"
-                  onClick={() => handleDeleteDish(item.id)}
-                >
-                  <Trash2 className="w-3.5 h-3.5 text-destructive" />
-                </Button>
+          <div key={item.id} className="card-premium p-4 group hover:border-gold/30 transition-all duration-300 flex flex-col justify-between">
+            <div>
+              {/* Dish Image Banner */}
+              <div className="relative mb-3 h-44 w-full overflow-hidden rounded-lg bg-secondary/40">
+                <img
+                  src={item.image_url || `/MBB - Images/${item.name}.jpg`}
+                  alt={item.name}
+                  loading="lazy"
+                  className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                  onError={(e) => {
+                    (e.target as HTMLElement).style.display = 'none';
+                  }}
+                />
+                <div className="absolute top-2.5 left-2.5">
+                  <Badge className={cn("border backdrop-blur-md shadow-sm", categoryColors[item.category])}>
+                    {item.category}
+                  </Badge>
+                </div>
+                <div className="absolute top-2.5 right-2.5 flex items-center gap-1 bg-background/90 backdrop-blur-md rounded-md p-0.5 shadow-sm">
+                  <Button variant="ghost" size="icon" className="h-7 w-7" aria-label={"Edit " + item.name} onClick={() => openDishForm(item)}>
+                    <Pencil className="size-3.5" />
+                  </Button>
+                  <Button
+                    aria-label={"Delete " + item.name}
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7"
+                    onClick={() => handleDeleteDish(item.id)}
+                  >
+                    <Trash2 className="w-3.5 h-3.5 text-destructive" />
+                  </Button>
+                </div>
               </div>
+
+              <h3 className="font-display text-lg font-semibold text-foreground mb-1.5 max-md:[overflow-wrap:anywhere]">
+                {item.name}
+              </h3>
+
+              {item.description && (
+                <p className="text-xs text-muted-foreground mb-3 line-clamp-2">{item.description}</p>
+              )}
             </div>
 
-            <h3 className="font-display text-lg font-semibold text-foreground mb-2 max-md:[overflow-wrap:anywhere]">
-              {item.name}
-            </h3>
-
-            {item.description && (
-              <p className="text-xs text-muted-foreground mb-3">{item.description}</p>
-            )}
-
-            <div className="grid grid-cols-3 gap-2 pt-3 border-t border-border">
+            <div className="grid grid-cols-3 gap-2 pt-3 border-t border-border mt-3">
               <div>
                 <p className="text-xs text-muted-foreground">Cost</p>
                 <p className="font-semibold text-foreground">{formatPrice(item.cost_per_serving)}</p>
