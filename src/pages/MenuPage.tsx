@@ -29,11 +29,13 @@ import {
   Loader2,
   LayoutGrid,
   List,
+  Layers,
 } from 'lucide-react';
 import { useMenuItems, useCreateMenuItem, useDeleteMenuItem, useUpdateMenuItem } from '@/hooks/api';
+import { RecipeBuilder } from '@/components/menu/RecipeBuilder';
 import { toast } from 'sonner';
 import { isAxiosError } from 'axios';
-import type { MenuCatalogItem } from '@/types';
+import type { MenuCatalogItem, MenuItemIngredient } from '@/types';
 import { menuPosterUrl } from '@/brand';
 import { averageMenuMargin } from '@/lib/utils';
 
@@ -47,12 +49,21 @@ const categoryColors: Record<string, string> = {
   BBQ: 'bg-red-50 text-red-700 border-red-200',
   Rice: 'bg-orange-50 text-orange-700 border-orange-200',
   Dessert: 'bg-purple-50 text-purple-700 border-purple-200',
+  Combos: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+  Offers: 'bg-emerald-50 text-emerald-700 border-emerald-200',
   'Live Station': 'bg-emerald-50 text-emerald-700 border-emerald-200',
   Appetizer: 'bg-slate-100 text-slate-700 border-slate-200',
 };
 
-const menuCategories = ['Starters', 'Gravy', 'Rice', 'Snacks', 'Noodles', 'Shawarma'];
-const emptyDish = { name: '', description: '', category: 'Starters', cost_per_serving: '', selling_price: '' };
+const menuCategories = ['Rice', 'Starters', 'Noodles', 'Gravy', 'Combos', 'Offers', 'Shawarma', 'Snacks'];
+const emptyDish = {
+  name: '',
+  description: '',
+  category: 'Starters',
+  cost_per_serving: '',
+  selling_price: '',
+  ingredients: [] as MenuItemIngredient[],
+};
 const formatPrice = (value: string | number | null) =>
   value == null ? 'Not set' : '₹' + Number(value).toFixed(2);
 
@@ -108,6 +119,7 @@ export default function MenuPage() {
             category: item.category,
             cost_per_serving: item.cost_per_serving?.toString() ?? '',
             selling_price: item.selling_price?.toString() ?? '',
+            ingredients: item.ingredients ? [...item.ingredients] : [],
           }
         : emptyDish
     );
@@ -128,6 +140,7 @@ export default function MenuPage() {
       selling_price: formData.selling_price === '' ? null : Number(formData.selling_price),
       is_vegetarian: editing?.is_vegetarian ?? false,
       prep_time_minutes: editing ? editing.prep_time_minutes : 30,
+      ingredients: formData.ingredients,
     };
     try {
       if (editing) {
@@ -135,7 +148,7 @@ export default function MenuPage() {
       } else {
         await createMenuItem.mutateAsync(dish);
       }
-      toast.success(editing ? 'Dish updated' : 'Dish added');
+      toast.success(editing ? 'Dish and recipe updated' : 'Dish and recipe created');
       setIsAddDialogOpen(false);
     } catch (error) {
       toast.error(
@@ -304,26 +317,49 @@ export default function MenuPage() {
 
       {/* Add / Edit Dish Dialog */}
       <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-        <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto">
+        <DialogContent className="max-w-3xl max-h-[calc(100dvh-2rem)] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editing ? 'Edit dish' : 'Add dish'}</DialogTitle>
             <DialogDescription>
-              Set your selling price and cost to calculate the dish margin.
+              Set selling price, cost, and build the recipe from inventory ingredients.
             </DialogDescription>
           </DialogHeader>
           <form id="dish-form" onSubmit={saveDish} className="space-y-4">
-            <div>
-              <label htmlFor="dish-name" className="text-sm font-medium">
-                Dish name
-              </label>
-              <Input
-                placeholder="e.g., Tawa Beef"
-                id="dish-name"
-                required
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label htmlFor="dish-name" className="text-sm font-medium">
+                  Dish name *
+                </label>
+                <Input
+                  placeholder="e.g., Tawa Beef"
+                  id="dish-name"
+                  required
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                />
+              </div>
+              <div>
+                <label htmlFor="dish-category" className="text-sm font-medium">
+                  Category
+                </label>
+                <Select
+                  value={formData.category}
+                  onValueChange={(value) => setFormData({ ...formData, category: value })}
+                >
+                  <SelectTrigger id="dish-category">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {categories.map((category) => (
+                      <SelectItem key={category} value={category}>
+                        {category}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
+
             <div>
               <label htmlFor="dish-description" className="text-sm font-medium">
                 Description
@@ -335,52 +371,49 @@ export default function MenuPage() {
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               />
             </div>
-            <div>
-              <label htmlFor="dish-category" className="text-sm font-medium">
-                Category
-              </label>
-              <Select
-                value={formData.category}
-                onValueChange={(value) => setFormData({ ...formData, category: value })}
-              >
-                <SelectTrigger id="dish-category">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {categories.map((category) => (
-                    <SelectItem key={category} value={category}>
-                      {category}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label htmlFor="dish-cost" className="text-sm font-medium">
+                  Cost per serving (₹)
+                </label>
+                <Input
+                  id="dish-cost"
+                  min="0"
+                  max="99999999.99"
+                  step="0.01"
+                  type="number"
+                  placeholder="Auto-calculated from recipe or custom"
+                  value={formData.cost_per_serving}
+                  onChange={(e) => setFormData({ ...formData, cost_per_serving: e.target.value })}
+                />
+              </div>
+              <div>
+                <label htmlFor="dish-price" className="text-sm font-medium">
+                  Selling price (₹) *
+                </label>
+                <Input
+                  id="dish-price"
+                  min="0"
+                  max="99999999.99"
+                  step="0.01"
+                  type="number"
+                  placeholder="e.g., 180"
+                  value={formData.selling_price}
+                  onChange={(e) => setFormData({ ...formData, selling_price: e.target.value })}
+                />
+              </div>
             </div>
-            <div>
-              <label htmlFor="dish-cost" className="text-sm font-medium">
-                Cost per serving (₹)
-              </label>
-              <Input
-                id="dish-cost"
-                min="0"
-                max="99999999.99"
-                step="0.01"
-                type="number"
-                value={formData.cost_per_serving}
-                onChange={(e) => setFormData({ ...formData, cost_per_serving: e.target.value })}
-              />
-            </div>
-            <div>
-              <label htmlFor="dish-price" className="text-sm font-medium">
-                Selling price (₹)
-              </label>
-              <Input
-                id="dish-price"
-                min="0"
-                max="99999999.99"
-                step="0.01"
-                type="number"
-                value={formData.selling_price}
-                onChange={(e) => setFormData({ ...formData, selling_price: e.target.value })}
+
+            {/* Recipe & Ingredient Requirements Section */}
+            <div className="border-t border-slate-200 pt-3">
+              <RecipeBuilder
+                ingredients={formData.ingredients}
+                onChange={(ingredients) => setFormData((prev) => ({ ...prev, ingredients }))}
+                onApplyRecipeCost={(calculatedCost) => {
+                  setFormData((prev) => ({ ...prev, cost_per_serving: calculatedCost.toFixed(2) }));
+                  toast.success(`Cost per serving set to ₹${calculatedCost.toFixed(2)} from recipe`);
+                }}
               />
             </div>
           </form>
@@ -431,10 +464,24 @@ export default function MenuPage() {
                       (e.target as HTMLElement).style.display = 'none';
                     }}
                   />
-                  <div className="absolute top-2.5 left-2.5">
+                  <div className="absolute top-2.5 left-2.5 flex flex-col gap-1 items-start">
                     <Badge className={cn('border backdrop-blur-md shadow-xs', categoryColors[item.category])}>
                       {item.category}
                     </Badge>
+                    {item.ingredients && item.ingredients.length > 0 ? (
+                      item.is_in_stock === false || item.servings_available === 0 ? (
+                        <Badge className="bg-rose-600/90 text-white font-bold text-[10px] backdrop-blur-md border-0 shadow-sm">
+                          Out of stock (0)
+                        </Badge>
+                      ) : (
+                        <Badge className={cn(
+                          'text-white font-bold text-[10px] backdrop-blur-md border-0 shadow-sm',
+                          (item.servings_available ?? 0) <= 5 ? 'bg-amber-600/90' : 'bg-emerald-600/90'
+                        )}>
+                          {item.servings_available} serving{(item.servings_available ?? 0) !== 1 ? 's' : ''}
+                        </Badge>
+                      )
+                    ) : null}
                   </div>
                   <div className="absolute top-2.5 right-2.5 flex items-center gap-1 bg-white/95 backdrop-blur-md rounded-lg p-0.5 shadow-sm">
                     <Button
@@ -458,9 +505,20 @@ export default function MenuPage() {
                   </div>
                 </div>
 
-                <h3 className="font-display text-lg font-bold text-slate-900 mb-1 truncate">
-                  {item.name}
-                </h3>
+                <div className="flex items-center justify-between gap-2 mb-1">
+                  <h3 className="font-display text-lg font-bold text-slate-900 truncate">
+                    {item.name}
+                  </h3>
+                </div>
+
+                {item.ingredients && item.ingredients.length > 0 ? (
+                  <p className="text-[11px] text-slate-500 mb-2 flex items-center gap-1">
+                    <Layers className="size-3 text-[#e11d48]" />
+                    {item.ingredients.length} recipe ingredient{item.ingredients.length > 1 ? 's' : ''}
+                  </p>
+                ) : (
+                  <p className="text-[11px] text-slate-400 mb-2 italic">No recipe linked</p>
+                )}
 
                 {item.description && (
                   <p className="text-xs text-slate-400 mb-3 line-clamp-2">{item.description}</p>
@@ -520,7 +578,7 @@ export default function MenuPage() {
 
                 {/* Dish Info */}
                 <div className="min-w-0 flex-1 space-y-1.5">
-                  <div className="flex items-center gap-3 flex-wrap">
+                  <div className="flex items-center gap-2.5 flex-wrap">
                     <h3 className="font-display text-xl sm:text-2xl font-bold text-slate-900 group-hover:text-[#e11d48] transition-colors truncate">
                       {item.name}
                     </h3>
@@ -532,6 +590,32 @@ export default function MenuPage() {
                     >
                       {item.category}
                     </Badge>
+                    {item.ingredients && item.ingredients.length > 0 ? (
+                      item.is_in_stock === false || item.servings_available === 0 ? (
+                        <Badge variant="outline" className="text-xs font-bold px-2.5 py-0.5 rounded-lg border-rose-200 bg-rose-50 text-rose-700">
+                          Out of Stock (0 servings)
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className={cn(
+                          'text-xs font-bold px-2.5 py-0.5 rounded-lg border shadow-xs',
+                          (item.servings_available ?? 0) <= 5
+                            ? 'border-amber-200 bg-amber-50 text-amber-700'
+                            : 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                        )}>
+                          {item.servings_available} servings in stock
+                        </Badge>
+                      )
+                    ) : (
+                      <Badge variant="outline" className="text-xs text-slate-400 border-slate-200">
+                        No recipe linked
+                      </Badge>
+                    )}
+                    {item.ingredients && item.ingredients.length > 0 && (
+                      <span className="text-xs text-slate-500 font-medium flex items-center gap-1 bg-slate-50 px-2 py-0.5 rounded-md border border-slate-200/60">
+                        <Layers className="size-3 text-[#e11d48]" />
+                        {item.ingredients.length} ingredient{item.ingredients.length > 1 ? 's' : ''}
+                      </span>
+                    )}
                   </div>
                   {item.description && (
                     <p className="text-xs sm:text-sm text-slate-500 line-clamp-2 max-w-xl">

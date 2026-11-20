@@ -55,6 +55,12 @@ export const inventoryAPI = {
   // Update stock
   updateStock: (id, data) => api.put(`/inventory/${id}/stock`, data),
 
+  // Adjust stock with history
+  adjustStock: (id, data) => api.post(`/inventory/${id}/adjust`, data),
+
+  // Get stock movements history
+  getMovements: () => api.get('/inventory/movements'),
+
   // Delete inventory item
   delete: (id) => api.delete(`/inventory/${id}`),
 };
@@ -134,6 +140,13 @@ export const ordersAPI = {
 
   // Create a new order
   create: (data: any) => api.post('/orders', data),
+
+  // Update order status (triggers automatic recipe stock deduction on Preparing)
+  updateStatus: (id: string, data: { status: string; cancellation_reason?: string }) =>
+    api.patch(`/orders/${id}/status`, data),
+
+  // Get order ingredient requirements and availability check
+  getRequirements: (id: string) => api.get(`/orders/${id}/requirements`),
 
   // Delete an order
   delete: (id: string) => api.delete(`/orders/${id}`),

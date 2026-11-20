@@ -384,10 +384,40 @@ if (googleEnabled) {
 }
 
 // ============================================================================
+// UNIT CONVERSION UTILITIES
+// ============================================================================
+
+function normalizeUnit(u) {
+  const s = String(u || '').trim().toLowerCase();
+  if (['kg', 'kilogram', 'kilograms'].includes(s)) return 'kg';
+  if (['g', 'gram', 'grams'].includes(s)) return 'g';
+  if (['l', 'liter', 'liters', 'litre', 'litres'].includes(s)) return 'L';
+  if (['ml', 'milliliter', 'milliliters'].includes(s)) return 'ml';
+  if (['piece', 'pieces', 'pcs', 'pc'].includes(s)) return 'pieces';
+  return s;
+}
+
+function convertQuantity(quantity, fromUnit, toUnit) {
+  const from = normalizeUnit(fromUnit);
+  const to = normalizeUnit(toUnit);
+  if (from === to) return Number(quantity);
+
+  // Weight
+  if (from === 'kg' && to === 'g') return Number(quantity) * 1000;
+  if (from === 'g' && to === 'kg') return Number(quantity) / 1000;
+
+  // Volume
+  if (from === 'L' && to === 'ml') return Number(quantity) * 1000;
+  if (from === 'ml' && to === 'L') return Number(quantity) / 1000;
+
+  throw new Error(`Incompatible measurement units: cannot convert from "${fromUnit}" to "${toUnit}".`);
+}
+
+// ============================================================================
 // MENU ITEMS ENDPOINTS
 // ============================================================================
 
-// GET all menu items
+// GET all menu items (with recipe ingredients & availability calculation)
 app.get('/api/menu-items', async (req, res) => {
   try {
     const result = await pool.query(`
@@ -399,7 +429,57 @@ app.get('/api/menu-items', async (req, res) => {
       WHERE deleted_at IS NULL
       ORDER BY category, name
     `);
-    res.json({ success: true, data: result.rows });
+    const items = result.rows;
+
+    if (items.length > 0) {
+      const ids = items.map(i => i.id);
+      const ingredientsResult = await pool.query(`
+        SELECT 
+          mii.id, mii.menu_item_id, mii.inventory_item_id, mii.ingredient_name, 
+          mii.quantity_required, mii.unit,
+          ii.name as inventory_name, ii.current_stock, ii.unit as inventory_unit, 
+          ii.cost_per_unit
+        FROM menu_item_ingredients mii
+        LEFT JOIN inventory_items ii ON mii.inventory_item_id = ii.id
+        WHERE mii.menu_item_id = ANY($1::uuid[])
+        ORDER BY mii.created_at ASC
+      `, [ids]);
+
+      const ingredientsByMenu = {};
+      for (const ing of ingredientsResult.rows) {
+        if (!ingredientsByMenu[ing.menu_item_id]) ingredientsByMenu[ing.menu_item_id] = [];
+        ingredientsByMenu[ing.menu_item_id].push(ing);
+      }
+
+      for (const item of items) {
+        item.ingredients = ingredientsByMenu[item.id] || [];
+
+        // Calculate how many servings can be prepared based on inventory stock
+        if (item.ingredients.length > 0) {
+          let minServings = Infinity;
+          for (const ing of item.ingredients) {
+            if (!ing.inventory_item_id || ing.current_stock == null) {
+              minServings = 0;
+              break;
+            }
+            try {
+              const stockInRecipeUnit = convertQuantity(Number(ing.current_stock), ing.inventory_unit, ing.unit);
+              const servings = Math.floor(Number((stockInRecipeUnit / Number(ing.quantity_required)).toFixed(4)));
+              if (servings < minServings) minServings = servings;
+            } catch {
+              minServings = 0;
+            }
+          }
+          item.servings_available = minServings === Infinity ? 0 : Math.max(0, minServings);
+          item.is_in_stock = item.servings_available > 0;
+        } else {
+          item.servings_available = null; // No recipe specified
+          item.is_in_stock = item.is_available !== false;
+        }
+      }
+    }
+
+    res.json({ success: true, data: items });
   } catch (error) {
     console.error('Error fetching menu items:', error);
     res.status(500).json({ success: false, error: error.message });
@@ -449,21 +529,24 @@ app.post('/api/menu-items', async (req, res) => {
     image_url, ingredients 
   } = req.body;
 
+  const client = await pool.connect();
   try {
-    // Get the business ID (for now, using the first/only business)
-    const businessResult = await pool.query('SELECT id FROM businesses LIMIT 1');
+    await client.query('BEGIN');
+
+    const businessResult = await client.query('SELECT id FROM businesses LIMIT 1');
     const businessId = businessResult.rows[0]?.id;
 
     if (!businessId) {
+      await client.query('ROLLBACK');
       return res.status(400).json({ success: false, error: 'No business found' });
     }
 
     // Insert menu item
-    const itemResult = await pool.query(`
+    const itemResult = await client.query(`
       INSERT INTO menu_items 
       (business_id, name, description, category, cost_per_serving, selling_price, 
-       margin_percent, is_vegetarian, prep_time_minutes, image_url)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+       margin_percent, is_vegetarian, prep_time_minutes, image_url, is_available)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, true)
       RETURNING *
     `, [
       businessId, name, description, category, cost_per_serving, selling_price,
@@ -473,19 +556,35 @@ app.post('/api/menu-items', async (req, res) => {
 
     const itemId = itemResult.rows[0].id;
 
-    // Insert ingredients
-    if (ingredients && ingredients.length > 0) {
+    // Insert ingredients (preventing duplicate inventory items)
+    if (Array.isArray(ingredients) && ingredients.length > 0) {
+      const seenInvIds = new Set();
       for (const ingredient of ingredients) {
-        await pool.query(`
+        if (!ingredient.inventory_item_id || seenInvIds.has(ingredient.inventory_item_id)) continue;
+        seenInvIds.add(ingredient.inventory_item_id);
+
+        let ingName = ingredient.ingredient_name || ingredient.name;
+        if (!ingName && ingredient.inventory_item_id) {
+          const invQuery = await client.query('SELECT name FROM inventory_items WHERE id = $1', [ingredient.inventory_item_id]);
+          ingName = invQuery.rows[0]?.name || 'Ingredient';
+        }
+        const qtyRequired = Number(ingredient.quantity_required ?? ingredient.quantity) || 0;
+
+        await client.query(`
           INSERT INTO menu_item_ingredients 
           (menu_item_id, inventory_item_id, ingredient_name, quantity_required, unit)
           VALUES ($1, $2, $3, $4, $5)
         `, [
-          itemId, ingredient.inventory_item_id, 
-          ingredient.ingredient_name, ingredient.quantity_required, ingredient.unit
+          itemId, 
+          ingredient.inventory_item_id, 
+          ingName, 
+          qtyRequired, 
+          ingredient.unit
         ]);
       }
     }
+
+    await client.query('COMMIT');
 
     res.status(201).json({ 
       success: true, 
@@ -493,33 +592,79 @@ app.post('/api/menu-items', async (req, res) => {
       data: itemResult.rows[0]
     });
   } catch (error) {
+    await client.query('ROLLBACK');
     console.error('Error creating menu item:', error);
     res.status(500).json({ success: false, error: error.message });
+  } finally {
+    client.release();
   }
 });
 
-// UPDATE menu item
+// UPDATE menu item (including recipe ingredients)
 app.put('/api/menu-items/:id', async (req, res) => {
-  const { name, description, category, cost_per_serving, selling_price, is_vegetarian, prep_time_minutes } = req.body;
+  const { 
+    name, description, category, cost_per_serving, 
+    selling_price, is_vegetarian, prep_time_minutes, 
+    is_available, ingredients 
+  } = req.body;
 
+  const client = await pool.connect();
   try {
-    const result = await pool.query(`
+    await client.query('BEGIN');
+
+    const result = await client.query(`
       UPDATE menu_items 
       SET name = $1, description = $2, category = $3, 
           cost_per_serving = $4, selling_price = $5,
           margin_percent = $6, is_vegetarian = $7, prep_time_minutes = $8,
+          is_available = COALESCE($9, is_available),
           updated_at = NOW()
-      WHERE id = $9 AND deleted_at IS NULL
+      WHERE id = $10 AND deleted_at IS NULL
       RETURNING *
     `, [
       name, description, category, cost_per_serving, selling_price,
       calculateMenuMargin(cost_per_serving, selling_price),
-      is_vegetarian, prep_time_minutes, req.params.id
+      is_vegetarian, prep_time_minutes, is_available, req.params.id
     ]);
 
     if (result.rows.length === 0) {
+      await client.query('ROLLBACK');
       return res.status(404).json({ success: false, error: 'Menu item not found' });
     }
+
+    // Update ingredients if provided
+    if (Array.isArray(ingredients)) {
+      await client.query(`
+        DELETE FROM menu_item_ingredients WHERE menu_item_id = $1
+      `, [req.params.id]);
+
+      const seenInvIds = new Set();
+      for (const ingredient of ingredients) {
+        if (!ingredient.inventory_item_id || seenInvIds.has(ingredient.inventory_item_id)) continue;
+        seenInvIds.add(ingredient.inventory_item_id);
+
+        let ingName = ingredient.ingredient_name || ingredient.name;
+        if (!ingName && ingredient.inventory_item_id) {
+          const invQuery = await client.query('SELECT name FROM inventory_items WHERE id = $1', [ingredient.inventory_item_id]);
+          ingName = invQuery.rows[0]?.name || 'Ingredient';
+        }
+        const qtyRequired = Number(ingredient.quantity_required ?? ingredient.quantity) || 0;
+
+        await client.query(`
+          INSERT INTO menu_item_ingredients 
+          (menu_item_id, inventory_item_id, ingredient_name, quantity_required, unit)
+          VALUES ($1, $2, $3, $4, $5)
+        `, [
+          req.params.id, 
+          ingredient.inventory_item_id, 
+          ingName, 
+          qtyRequired, 
+          ingredient.unit
+        ]);
+      }
+    }
+
+    await client.query('COMMIT');
 
     res.json({ 
       success: true, 
@@ -527,8 +672,11 @@ app.put('/api/menu-items/:id', async (req, res) => {
       data: result.rows[0]
     });
   } catch (error) {
+    await client.query('ROLLBACK');
     console.error('Error updating menu item:', error);
     res.status(500).json({ success: false, error: error.message });
+  } finally {
+    client.release();
   }
 });
 
@@ -599,49 +747,66 @@ app.get('/api/inventory/low-stock', async (req, res) => {
 app.post('/api/inventory', async (req, res) => {
   const { 
     name, category, unit, cost_per_unit, 
-    supplier_id, supplier_name, minimum_stock
+    current_stock, minimum_stock, supplier_id, supplier_name
   } = req.body ?? {};
 
-  if (supplier_id != null && (typeof supplier_id !== 'string' ||
-    !/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(supplier_id))) {
-    return res.status(400).json({ success: false, error: 'Select a valid supplier.' });
+  if (!name || cost_per_unit == null) {
+    return res.status(400).json({ success: false, error: 'Name and cost per unit are required.' });
   }
 
+  const client = await pool.connect();
   try {
-    // Get the business ID (for now, using the first/only business)
-    const businessResult = await pool.query('SELECT id FROM businesses LIMIT 1');
+    await client.query('BEGIN');
+
+    const businessResult = await client.query('SELECT id FROM businesses LIMIT 1');
     const businessId = businessResult.rows[0]?.id;
 
     if (!businessId) {
+      await client.query('ROLLBACK');
       return res.status(400).json({ success: false, error: 'No business found' });
     }
 
-    const result = await pool.query(`
+    const initialStock = Number(current_stock) || 0;
+    const minStock = Number(minimum_stock) || 0;
+    const cost = Number(cost_per_unit) || 0;
+
+    const result = await client.query(`
       INSERT INTO inventory_items
       (business_id, name, category, unit, current_stock, cost_per_unit, 
        supplier_id, supplier_name, minimum_stock, is_active)
-      SELECT $1, $2, $3, $4, 0, $5, s.id, COALESCE(s.name, $7), $8, true
-      FROM (SELECT 1) AS item
-      LEFT JOIN suppliers s ON s.id = $6 AND s.business_id = $1 AND s.is_active
-      WHERE $6::uuid IS NULL OR s.id IS NOT NULL
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, true)
       RETURNING *
     `, [
-      businessId, name, category, unit, cost_per_unit,
-      supplier_id, supplier_name, minimum_stock
+      businessId, name.trim(), category || 'General', unit || 'kg',
+      initialStock, cost, supplier_id || null, supplier_name || null, minStock
     ]);
 
-    if (!result.rowCount) {
-      return res.status(400).json({ success: false, error: 'Select an active supplier from Purchases.' });
+    const newItem = result.rows[0];
+
+    // Log initial stock movement if quantity > 0
+    if (initialStock > 0) {
+      await client.query(`
+        INSERT INTO inventory_movements (
+          business_id, inventory_item_id, movement_type, 
+          quantity, unit, previous_stock, new_stock, notes
+        )
+        VALUES ($1, $2, 'Initial Stock', $3, $4, 0, $3, 'Initial inventory registration')
+      `, [businessId, newItem.id, initialStock, newItem.unit]);
     }
+
+    await client.query('COMMIT');
 
     res.status(201).json({ 
       success: true, 
       message: 'Inventory item created successfully',
-      data: result.rows[0]
+      data: newItem
     });
   } catch (error) {
+    await client.query('ROLLBACK');
     console.error('Error creating inventory item:', error);
     res.status(500).json({ success: false, error: error.message });
+  } finally {
+    client.release();
   }
 });
 
@@ -659,7 +824,7 @@ app.put('/api/inventory/:id', async (req, res) => {
       RETURNING *
     `, [
       name, category, unit, cost_per_unit, 
-      supplier_id, supplier_name, minimum_stock, req.params.id
+      supplier_id || null, supplier_name || null, minimum_stock, req.params.id
     ]);
 
     if (result.rows.length === 0) {
@@ -677,40 +842,124 @@ app.put('/api/inventory/:id', async (req, res) => {
   }
 });
 
-// UPDATE stock (add/remove)
-app.put('/api/inventory/:id/stock', async (req, res) => {
-  const { quantity, movement_type, reference_id } = req.body;
+// ADJUST / RESTOCK stock
+app.post('/api/inventory/:id/adjust', async (req, res) => {
+  const { quantity_change, movement_type, notes } = req.body;
+  const change = Number(quantity_change);
 
+  if (isNaN(change) || change === 0) {
+    return res.status(400).json({ success: false, error: 'Valid non-zero quantity change is required' });
+  }
+
+  const client = await pool.connect();
   try {
-    // Get current stock
-    const current = await pool.query(`
-      SELECT current_stock FROM inventory_items WHERE id = $1
+    await client.query('BEGIN');
+
+    const current = await client.query(`
+      SELECT * FROM inventory_items WHERE id = $1 FOR UPDATE
     `, [req.params.id]);
 
     if (current.rows.length === 0) {
+      await client.query('ROLLBACK');
       return res.status(404).json({ success: false, error: 'Inventory item not found' });
     }
 
-    const previousStock = current.rows[0].current_stock;
-    const newStock = previousStock + quantity;
+    const item = current.rows[0];
+    const previousStock = Number(item.current_stock);
+    const newStock = previousStock + change;
 
-    // Update stock
-    const result = await pool.query(`
+    if (newStock < 0) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ 
+        success: false, 
+        error: `Cannot reduce stock below zero. Current stock is ${previousStock} ${item.unit}.` 
+      });
+    }
+
+    const updated = await client.query(`
       UPDATE inventory_items 
       SET current_stock = $1, updated_at = NOW()
       WHERE id = $2
       RETURNING *
     `, [newStock, req.params.id]);
 
-    // Log stock movement
-    await pool.query(`
-      INSERT INTO stock_movements (business_id, inventory_item_id, movement_type, 
-                                   quantity_change, previous_stock, new_stock, reference_id, reference_type)
-      SELECT 
-        'f47ac10b-58cc-4372-a567-0e02b2c3d479'::uuid,
-        $1, $2, $3, $4, $5, $6, 'Purchase'
-      FROM businesses LIMIT 1
-    `, [req.params.id, movement_type, quantity, previousStock, newStock, reference_id]);
+    const moveType = movement_type || (change > 0 ? 'Restock' : 'Adjustment');
+
+    await client.query(`
+      INSERT INTO inventory_movements (
+        business_id, inventory_item_id, movement_type, 
+        quantity, unit, previous_stock, new_stock, notes
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    `, [
+      item.business_id, req.params.id, moveType,
+      change, item.unit, previousStock, newStock, notes || `${moveType}: ${change > 0 ? '+' : ''}${change} ${item.unit}`
+    ]);
+
+    await client.query('COMMIT');
+
+    res.json({ 
+      success: true, 
+      message: 'Stock adjusted successfully',
+      data: updated.rows[0]
+    });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Error adjusting stock:', error);
+    res.status(500).json({ success: false, error: error.message });
+  } finally {
+    client.release();
+  }
+});
+
+// UPDATE stock (PUT compatibility)
+app.put('/api/inventory/:id/stock', async (req, res) => {
+  const { quantity, movement_type, reference_id, notes } = req.body;
+  const change = Number(quantity);
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const current = await client.query(`
+      SELECT * FROM inventory_items WHERE id = $1 FOR UPDATE
+    `, [req.params.id]);
+
+    if (current.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ success: false, error: 'Inventory item not found' });
+    }
+
+    const item = current.rows[0];
+    const previousStock = Number(item.current_stock);
+    const newStock = previousStock + change;
+
+    if (newStock < 0) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ 
+        success: false, 
+        error: `Cannot reduce stock below zero. Current stock is ${previousStock} ${item.unit}.` 
+      });
+    }
+
+    const result = await client.query(`
+      UPDATE inventory_items 
+      SET current_stock = $1, updated_at = NOW()
+      WHERE id = $2
+      RETURNING *
+    `, [newStock, req.params.id]);
+
+    const moveType = movement_type || (change > 0 ? 'Restock' : 'Adjustment');
+
+    await client.query(`
+      INSERT INTO inventory_movements (
+        business_id, inventory_item_id, movement_type, 
+        quantity, unit, previous_stock, new_stock, notes
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    `, [item.business_id, req.params.id, moveType, change, item.unit, previousStock, newStock, notes || `Stock update: ${reference_id || ''}`]);
+
+    await client.query('COMMIT');
 
     res.json({ 
       success: true, 
@@ -718,7 +967,32 @@ app.put('/api/inventory/:id/stock', async (req, res) => {
       data: result.rows[0]
     });
   } catch (error) {
+    await client.query('ROLLBACK');
     console.error('Error updating stock:', error);
+    res.status(500).json({ success: false, error: error.message });
+  } finally {
+    client.release();
+  }
+});
+
+// GET all inventory movements
+app.get('/api/inventory/movements', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT 
+        im.id, im.inventory_item_id, im.order_id, im.movement_type, 
+        im.quantity, im.unit, im.previous_stock, im.new_stock, im.notes, im.created_at,
+        ii.name as ingredient_name, ii.category,
+        COALESCE(o.order_ref, o.order_number) as order_ref
+      FROM inventory_movements im
+      JOIN inventory_items ii ON im.inventory_item_id = ii.id
+      LEFT JOIN orders o ON im.order_id = o.id
+      ORDER BY im.created_at DESC
+      LIMIT 100
+    `);
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    console.error('Error fetching inventory movements:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -1310,6 +1584,9 @@ app.get('/api/orders', async (req, res) => {
         COALESCE(payment_method, 'Cash') as payment_method, 
         COALESCE(total_amount, total_value, 0) as total_amount, 
         status, 
+        inventory_deducted,
+        inventory_deducted_at,
+        cancellation_reason,
         created_at
       FROM orders
       ORDER BY created_at DESC
@@ -1349,7 +1626,7 @@ app.get('/api/orders', async (req, res) => {
   }
 });
 
-// CREATE order
+// CREATE order (Initial status is 'New', inventory is NOT deducted yet per Rule 4)
 app.post('/api/orders', async (req, res) => {
   const { customer_name, table_no, payment_method, items, total_amount } = req.body;
 
@@ -1366,10 +1643,10 @@ app.post('/api/orders', async (req, res) => {
 
     const orderResult = await pool.query(`
       INSERT INTO orders (
-        business_id, order_ref, order_number, customer_name, client_name, table_no, payment_method, total_amount, total_value, status
+        business_id, order_ref, order_number, customer_name, client_name, table_no, payment_method, total_amount, total_value, status, inventory_deducted
       )
-      VALUES ($1, $2, $2, $3, $3, $4, $5, $6, $6, 'Completed')
-      RETURNING id, order_ref, order_number, customer_name, table_no, payment_method, total_amount, status, created_at
+      VALUES ($1, $2, $2, $3, $3, $4, $5, $6, $6, 'New', false)
+      RETURNING id, order_ref, order_number, customer_name, table_no, payment_method, total_amount, status, inventory_deducted, created_at
     `, [businessId, orderRef, customer_name || null, table_no || null, payment_method || 'Cash', computedTotal]);
 
     const orderId = orderResult.rows[0].id;
@@ -1393,14 +1670,389 @@ app.post('/api/orders', async (req, res) => {
 
     res.status(201).json({
       success: true,
-      message: 'Order created successfully',
-      data: { ...orderResult.rows[0], order_ref: orderRef },
+      message: 'Order created successfully with status New',
+      data: { ...orderResult.rows[0], order_ref: orderRef, items: itemsArray },
     });
   } catch (error) {
     console.error('Error creating order:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
+
+// GET order ingredient requirements & stock check
+app.get('/api/orders/:id/requirements', async (req, res) => {
+  try {
+    const orderId = req.params.id;
+    const orderRes = await pool.query('SELECT * FROM orders WHERE id = $1', [orderId]);
+    if (orderRes.rows.length === 0) return res.status(404).json({ success: false, error: 'Order not found' });
+    const order = orderRes.rows[0];
+
+    // If already deducted, return recorded consumptions
+    if (order.inventory_deducted) {
+      const consumptions = await pool.query(`
+        SELECT * FROM order_ingredient_consumptions WHERE order_id = $1 ORDER BY ingredient_name
+      `, [orderId]);
+      return res.json({ 
+        success: true, 
+        deducted: true, 
+        can_prepare: true, 
+        ingredients: consumptions.rows 
+      });
+    }
+
+    // Otherwise calculate required ingredients from recipes
+    const itemsRes = await pool.query(`
+      SELECT oi.*, mi.name as menu_name
+      FROM order_items oi
+      LEFT JOIN menu_items mi ON oi.menu_item_id = mi.id
+      WHERE oi.order_id = $1
+    `, [orderId]);
+
+    const menuIds = itemsRes.rows.map(i => i.menu_item_id).filter(Boolean);
+    let recipeIngredients = [];
+    if (menuIds.length > 0) {
+      const ingRes = await pool.query(`
+        SELECT mii.*, ii.name as inventory_name, ii.current_stock, ii.unit as inventory_unit
+        FROM menu_item_ingredients mii
+        JOIN inventory_items ii ON mii.inventory_item_id = ii.id
+        WHERE mii.menu_item_id = ANY($1::uuid[])
+      `, [menuIds]);
+      recipeIngredients = ingRes.rows;
+    }
+
+    const reqMap = {};
+    for (const item of itemsRes.rows) {
+      const ings = recipeIngredients.filter(r => r.menu_item_id === item.menu_item_id);
+      const qty = Number(item.quantity) || 1;
+      for (const ing of ings) {
+        if (!reqMap[ing.inventory_item_id]) {
+          reqMap[ing.inventory_item_id] = {
+            inventory_item_id: ing.inventory_item_id,
+            ingredient_name: ing.ingredient_name,
+            recipe_unit: ing.unit,
+            inventory_unit: ing.inventory_unit,
+            current_stock: Number(ing.current_stock),
+            required_quantity: 0,
+          };
+        }
+        reqMap[ing.inventory_item_id].required_quantity += Number(ing.quantity_required) * qty;
+      }
+    }
+
+    const list = Object.values(reqMap).map(r => {
+      let reqInInvUnit = r.required_quantity;
+      let hasSufficient = true;
+      try {
+        reqInInvUnit = convertQuantity(r.required_quantity, r.recipe_unit, r.inventory_unit);
+        hasSufficient = r.current_stock >= reqInInvUnit;
+      } catch {
+        hasSufficient = false;
+      }
+      return {
+        ...r,
+        required_in_inventory_unit: Number(reqInInvUnit.toFixed(4)),
+        is_sufficient: hasSufficient,
+        shortage: hasSufficient ? 0 : Number((reqInInvUnit - r.current_stock).toFixed(4)),
+      };
+    });
+
+    res.json({
+      success: true,
+      deducted: false,
+      can_prepare: list.every(i => i.is_sufficient),
+      ingredients: list,
+    });
+  } catch (error) {
+    console.error('Error fetching order requirements:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// UPDATE order status (Automatic Ingredient Deduction on 'Preparing' with strict Rule 4 compliance)
+const updateOrderStatusHandler = async (req, res) => {
+  const { status, cancellation_reason } = req.body;
+  const orderId = req.params.id;
+
+  if (!['New', 'Preparing', 'Ready', 'Completed', 'Cancelled'].includes(status)) {
+    return res.status(400).json({ success: false, error: 'Invalid order status' });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // 1. Lock the order row to prevent race conditions
+    const orderRes = await client.query(`
+      SELECT * FROM orders WHERE id = $1 FOR UPDATE
+    `, [orderId]);
+
+    if (orderRes.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ success: false, error: 'Order not found' });
+    }
+
+    const order = orderRes.rows[0];
+    const isAlreadyDeducted = Boolean(order.inventory_deducted);
+
+    // Rule: Order Cancellation
+    if (status === 'Cancelled') {
+      // "Cancelling an order before preparation must not deduct inventory."
+      // "Cancelling an order after preparation has started must not automatically return consumed ingredients to stock."
+      await client.query(`
+        UPDATE orders 
+        SET status = 'Cancelled', cancellation_reason = $1, updated_at = NOW()
+        WHERE id = $2
+      `, [cancellation_reason || 'Cancelled by manager', orderId]);
+
+      await client.query('COMMIT');
+      return res.json({ 
+        success: true, 
+        message: 'Order cancelled successfully',
+        data: { ...order, status: 'Cancelled', cancellation_reason }
+      });
+    }
+
+    // Rule: Changing an order to 'Preparing' (or Ready/Completed) deducts ingredients automatically exactly once!
+    const shouldDeduct = (status === 'Preparing' || status === 'Ready' || status === 'Completed') && !isAlreadyDeducted;
+
+    if (shouldDeduct) {
+      // 2. Fetch order items
+      const itemsRes = await client.query(`
+        SELECT oi.*, mi.name as menu_name
+        FROM order_items oi
+        LEFT JOIN menu_items mi ON oi.menu_item_id = mi.id
+        WHERE oi.order_id = $1
+      `, [orderId]);
+
+      const orderItems = itemsRes.rows;
+
+      // 3. For each order item, find recipe ingredients
+      const menuIds = orderItems.map(i => i.menu_item_id).filter(Boolean);
+      let ingredientsByMenu = {};
+
+      if (menuIds.length > 0) {
+        const ingRes = await client.query(`
+          SELECT * FROM menu_item_ingredients WHERE menu_item_id = ANY($1::uuid[])
+        `, [menuIds]);
+        for (const ing of ingRes.rows) {
+          if (!ingredientsByMenu[ing.menu_item_id]) ingredientsByMenu[ing.menu_item_id] = [];
+          ingredientsByMenu[ing.menu_item_id].push(ing);
+        }
+      }
+
+      // 4. Calculate total required quantity per inventory_item_id
+      const requiredAgg = {};
+      for (const item of orderItems) {
+        const recipe = ingredientsByMenu[item.menu_item_id] || [];
+        const orderItemQty = Number(item.quantity) || 1;
+
+        for (const r of recipe) {
+          if (!r.inventory_item_id) continue;
+          const totalQty = Number(r.quantity_required) * orderItemQty;
+
+          if (!requiredAgg[r.inventory_item_id]) {
+            requiredAgg[r.inventory_item_id] = {
+              inventory_item_id: r.inventory_item_id,
+              ingredient_name: r.ingredient_name,
+              recipeUnit: r.unit,
+              totalRequired: 0,
+              itemConsumptions: [],
+            };
+          }
+          requiredAgg[r.inventory_item_id].totalRequired += totalQty;
+          requiredAgg[r.inventory_item_id].itemConsumptions.push({
+            order_item_id: item.id,
+            menu_item_id: item.menu_item_id,
+            ingredient_name: r.ingredient_name,
+            quantity: totalQty,
+            unit: r.unit,
+          });
+        }
+      }
+
+      const invIds = Object.keys(requiredAgg);
+      if (invIds.length > 0) {
+        // 5. Lock inventory items row-level to prevent negative stock during concurrent orders
+        const invRes = await client.query(`
+          SELECT id, name, unit, current_stock, cost_per_unit, business_id
+          FROM inventory_items
+          WHERE id = ANY($1::uuid[])
+          FOR UPDATE
+        `, [invIds]);
+
+        const invMap = {};
+        invRes.rows.forEach(r => { invMap[r.id] = r; });
+
+        // 6. Check stock sufficiency for ALL required ingredients
+        const shortages = [];
+        const deductions = [];
+
+        for (const invId of invIds) {
+          const req = requiredAgg[invId];
+          const invItem = invMap[invId];
+
+          if (!invItem) {
+            shortages.push({
+              name: req.ingredient_name,
+              required: req.totalRequired,
+              available: 0,
+              unit: req.recipeUnit,
+              error: 'Inventory ingredient record missing',
+            });
+            continue;
+          }
+
+          let requiredInInvUnit;
+          try {
+            requiredInInvUnit = convertQuantity(req.totalRequired, req.recipeUnit, invItem.unit);
+          } catch (convErr) {
+            shortages.push({
+              name: invItem.name,
+              required: req.totalRequired,
+              available: Number(invItem.current_stock),
+              unit: invItem.unit,
+              error: convErr.message,
+            });
+            continue;
+          }
+
+          const currentStock = Number(invItem.current_stock);
+          if (currentStock < requiredInInvUnit) {
+            shortages.push({
+              name: invItem.name,
+              required: Number(requiredInInvUnit.toFixed(4)),
+              available: Number(currentStock.toFixed(4)),
+              unit: invItem.unit,
+              shortage: Number((requiredInInvUnit - currentStock).toFixed(4)),
+            });
+          } else {
+            deductions.push({
+              inventory_item_id: invId,
+              name: invItem.name,
+              business_id: invItem.business_id,
+              previous_stock: currentStock,
+              new_stock: Number((currentStock - requiredInInvUnit).toFixed(4)),
+              quantity_deducted: requiredInInvUnit,
+              unit: invItem.unit,
+              cost_at_deduction: Number(invItem.cost_per_unit) || 0,
+              itemConsumptions: req.itemConsumptions,
+            });
+          }
+        }
+
+        // 7. If any shortage exists, block transition and rollback!
+        if (shortages.length > 0) {
+          await client.query('ROLLBACK');
+          return res.status(400).json({
+            success: false,
+            error: `Insufficient stock to prepare order ${order.order_ref || orderId}. Please restock required ingredients.`,
+            shortages,
+          });
+        }
+
+        // 8. Deduct stock and record movements & consumptions
+        for (const ded of deductions) {
+          // Update inventory stock
+          await client.query(`
+            UPDATE inventory_items
+            SET current_stock = $1, updated_at = NOW()
+            WHERE id = $2
+          `, [ded.new_stock, ded.inventory_item_id]);
+
+          // Record in inventory_movements
+          await client.query(`
+            INSERT INTO inventory_movements (
+              business_id, inventory_item_id, order_id, movement_type, 
+              quantity, unit, previous_stock, new_stock, notes
+            )
+            VALUES ($1, $2, $3, 'order_deduction', $4, $5, $6, $7, $8)
+          `, [
+            ded.business_id,
+            ded.inventory_item_id,
+            orderId,
+            -ded.quantity_deducted,
+            ded.unit,
+            ded.previous_stock,
+            ded.new_stock,
+            `Recipe deduction for order ${order.order_ref || orderId}`
+          ]);
+
+          // Record in stock_movements (compatibility)
+          await client.query(`
+            INSERT INTO stock_movements (
+              business_id, inventory_item_id, movement_type, 
+              quantity_change, previous_stock, new_stock, reference_id, reference_type, notes
+            )
+            VALUES ($1, $2, 'Consumption', $3, $4, $5, $6, 'Order', $7)
+          `, [
+            ded.business_id,
+            ded.inventory_item_id,
+            -ded.quantity_deducted,
+            ded.previous_stock,
+            ded.new_stock,
+            order.order_ref || orderId,
+            `Recipe deduction for order ${order.order_ref || orderId}`
+          ]);
+
+          // Record detailed item consumptions
+          for (const c of ded.itemConsumptions) {
+            await client.query(`
+              INSERT INTO order_ingredient_consumptions (
+                order_id, order_item_id, menu_item_id, inventory_item_id, 
+                ingredient_name, quantity_deducted, unit, cost_at_deduction
+              )
+              VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            `, [
+              orderId,
+              c.order_item_id,
+              c.menu_item_id,
+              ded.inventory_item_id,
+              c.ingredient_name,
+              c.quantity,
+              c.unit,
+              ded.cost_at_deduction
+            ]);
+          }
+        }
+      }
+
+      // Mark order as deducted
+      await client.query(`
+        UPDATE orders 
+        SET status = $1, inventory_deducted = true, inventory_deducted_at = NOW(), updated_at = NOW()
+        WHERE id = $2
+      `, [status, orderId]);
+    } else {
+      // Order was already deducted earlier, simply update status (e.g. from Preparing to Ready or Completed)
+      await client.query(`
+        UPDATE orders 
+        SET status = $1, updated_at = NOW()
+        WHERE id = $2
+      `, [status, orderId]);
+    }
+
+    await client.query('COMMIT');
+
+    res.json({
+      success: true,
+      message: `Order status updated to ${status}${shouldDeduct ? ' and inventory deducted' : ''}`,
+      data: {
+        id: orderId,
+        status,
+        inventory_deducted: isAlreadyDeducted || shouldDeduct,
+      }
+    });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Error updating order status:', err);
+    res.status(500).json({ success: false, error: err.message });
+  } finally {
+    client.release();
+  }
+};
+
+app.patch('/api/orders/:id/status', updateOrderStatusHandler);
+app.put('/api/orders/:id/status', updateOrderStatusHandler);
 
 // DELETE order
 app.delete('/api/orders/:id', async (req, res) => {

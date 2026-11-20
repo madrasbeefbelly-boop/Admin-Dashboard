@@ -10,6 +10,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import {
   Plus,
@@ -21,9 +29,16 @@ import {
   CheckCircle2,
   Clock,
   History,
+  Flame,
+  PackageCheck,
+  XCircle,
+  AlertTriangle,
+  ChefHat,
+  ArrowRight,
 } from 'lucide-react';
-import { useMenuItems, useCreateOrder, useOrders, useDeleteOrder } from '@/hooks/api';
+import { useMenuItems, useCreateOrder, useOrders, useDeleteOrder, useUpdateOrderStatus } from '@/hooks/api';
 import { toast } from 'sonner';
+import { Link } from 'react-router-dom';
 import type { OrderItem } from '@/types';
 
 const currency = new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' });
@@ -49,9 +64,18 @@ export default function OrdersPage() {
   const { data: orders = [], isLoading: ordersLoading, refetch: ordersRefetch } = useOrders();
   const createOrder = useCreateOrder();
   const deleteOrder = useDeleteOrder();
+  const updateStatus = useUpdateOrderStatus();
 
   const [selectedId, setSelectedId] = useState('');
   const [cart, setCart] = useState<OrderItem[]>([]);
+  const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
+
+  // Shortage modal state
+  const [shortageInfo, setShortageInfo] = useState<{
+    open: boolean;
+    orderRef?: string;
+    shortages: { name: string; required: number; available: number; shortage: number; unit: string }[];
+  }>({ open: false, shortages: [] });
 
   const availableItems = useMemo(() => menuItems, [menuItems]);
 
@@ -115,7 +139,7 @@ export default function OrdersPage() {
       const ref = result?.data?.data?.order_ref ?? result?.data?.order_ref ?? '—';
       clearCart();
       await ordersRefetch();
-      toast.success(`Order ${ref} placed successfully`);
+      toast.success(`Order ${ref} created in 'New' status`);
     } catch (err: any) {
       console.error('Order creation error:', err);
       const msg = err?.response?.data?.error || err?.message || 'Could not place order. Please try again.';
@@ -132,6 +156,56 @@ export default function OrdersPage() {
     } catch (err: any) {
       const msg = err?.response?.data?.error || err?.message || 'Could not delete order';
       toast.error(msg);
+    }
+  };
+
+  const handleStatusChange = async (order: any, nextStatus: string, promptReason = false) => {
+    let reason: string | undefined = undefined;
+    if (nextStatus === 'Cancelled') {
+      if (order.status === 'Preparing') {
+        const proceed = window.confirm(
+          'Notice: This order is already PREPARING and its recipe ingredients have been deducted from inventory.\n\nCancelling now will NOT restore consumed ingredients to stock.\n\nDo you want to proceed?'
+        );
+        if (!proceed) return;
+      } else if (order.status === 'New') {
+        const proceed = window.confirm('Cancel this order? No ingredients have been deducted yet.');
+        if (!proceed) return;
+      }
+      reason = window.prompt('Optional cancellation reason:') || 'Cancelled by manager';
+    }
+
+    try {
+      setUpdatingOrderId(order.id);
+      await updateStatus.mutateAsync({
+        id: order.id,
+        status: nextStatus,
+        cancellation_reason: reason,
+      });
+
+      if (nextStatus === 'Preparing') {
+        toast.success(`Order ${order.order_ref} is now Preparing! Stock deducted automatically.`);
+      } else if (nextStatus === 'Ready') {
+        toast.success(`Order ${order.order_ref} is Ready!`);
+      } else if (nextStatus === 'Completed') {
+        toast.success(`Order ${order.order_ref} is Completed!`);
+      } else if (nextStatus === 'Cancelled') {
+        toast.info(`Order ${order.order_ref} marked Cancelled.`);
+      }
+      await ordersRefetch();
+    } catch (err: any) {
+      const res = err?.response?.data;
+      if (res?.shortages && res.shortages.length > 0) {
+        setShortageInfo({
+          open: true,
+          orderRef: order.order_ref,
+          shortages: res.shortages,
+        });
+        toast.error(`Insufficient stock! ${res.shortages.length} ingredient(s) are short.`);
+      } else {
+        toast.error(res?.error || err?.message || 'Failed to update order status');
+      }
+    } finally {
+      setUpdatingOrderId(null);
     }
   };
 
@@ -179,6 +253,7 @@ export default function OrdersPage() {
                 ) : (
                   availableItems.map((item) => {
                     const price = formatPrice(item.selling_price);
+                    const isOutOfStock = item.is_in_stock === false || item.servings_available === 0;
                     return (
                       <SelectItem key={item.id} value={item.id}>
                         <span className="flex items-center gap-2.5 w-full">
@@ -189,7 +264,19 @@ export default function OrdersPage() {
                             onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
                           />
                           <span className="truncate">{item.name}</span>
-                          <span className="text-muted-foreground tabular-nums ml-auto shrink-0">
+                          {item.ingredients && item.ingredients.length > 0 && (
+                            <span className={cn(
+                              'text-[10px] px-1.5 py-0.5 rounded font-semibold shrink-0 ml-1',
+                              isOutOfStock
+                                ? 'bg-rose-100 text-rose-700'
+                                : (item.servings_available ?? 0) <= 5
+                                ? 'bg-amber-100 text-amber-700'
+                                : 'bg-emerald-100 text-emerald-700'
+                            )}>
+                              {isOutOfStock ? '0 stock' : `${item.servings_available} in stock`}
+                            </span>
+                          )}
+                          <span className="text-muted-foreground tabular-nums ml-auto shrink-0 pl-2">
                             {price != null ? `₹${price.toFixed(0)}` : '—'}
                           </span>
                         </span>
@@ -347,10 +434,48 @@ export default function OrdersPage() {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="font-mono text-sm font-semibold">{order.order_ref}</span>
-                            <Badge variant="outline" className="text-[11px] text-success border-success/30 bg-success/5">
-                              <CheckCircle2 className="size-2.5 mr-1" />
-                              {order.status || 'Completed'}
-                            </Badge>
+
+                            {/* Order Status Badge */}
+                            {(!order.status || order.status === 'New') && (
+                              <Badge variant="outline" className="text-[11px] font-semibold text-amber-700 border-amber-300 bg-amber-50">
+                                <Clock className="size-2.5 mr-1" />
+                                New
+                              </Badge>
+                            )}
+
+                            {order.status === 'Preparing' && (
+                              <Badge variant="outline" className="text-[11px] font-semibold text-blue-700 border-blue-300 bg-blue-50">
+                                <Flame className="size-2.5 mr-1 text-blue-600 animate-pulse" />
+                                Preparing
+                              </Badge>
+                            )}
+
+                            {order.status === 'Ready' && (
+                              <Badge variant="outline" className="text-[11px] font-semibold text-purple-700 border-purple-300 bg-purple-50">
+                                <PackageCheck className="size-2.5 mr-1" />
+                                Ready
+                              </Badge>
+                            )}
+
+                            {order.status === 'Completed' && (
+                              <Badge variant="outline" className="text-[11px] font-semibold text-emerald-700 border-emerald-300 bg-emerald-50">
+                                <CheckCircle2 className="size-2.5 mr-1" />
+                                Completed
+                              </Badge>
+                            )}
+
+                            {order.status === 'Cancelled' && (
+                              <Badge variant="outline" className="text-[11px] font-semibold text-rose-700 border-rose-300 bg-rose-50">
+                                <XCircle className="size-2.5 mr-1" />
+                                Cancelled
+                              </Badge>
+                            )}
+
+                            {order.inventory_deducted && (
+                              <Badge variant="outline" className="text-[10px] font-medium text-emerald-700 border-emerald-200 bg-emerald-50/80">
+                                ✓ Stock Deducted
+                              </Badge>
+                            )}
                           </div>
 
                           <p className="text-[11px] text-muted-foreground mt-0.5">
@@ -397,6 +522,85 @@ export default function OrdersPage() {
                           ) : (
                             <p className="text-xs text-muted-foreground mt-1">No item breakdown</p>
                           )}
+
+                          {/* Order Status Action Controls */}
+                          <div className="mt-3 flex items-center gap-2 flex-wrap pt-2.5 border-t border-border/50">
+                            {(!order.status || order.status === 'New') && (
+                              <>
+                                <Button
+                                  size="sm"
+                                  className="h-7.5 px-3 bg-[#e11d48] hover:bg-[#be123c] text-white text-xs font-semibold shadow-xs"
+                                  disabled={updatingOrderId === order.id}
+                                  onClick={() => handleStatusChange(order, 'Preparing')}
+                                >
+                                  {updatingOrderId === order.id ? (
+                                    <Loader2 className="size-3.5 mr-1.5 animate-spin" />
+                                  ) : (
+                                    <ChefHat className="size-3.5 mr-1.5" />
+                                  )}
+                                  Start Preparing
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-7.5 px-2.5 text-rose-600 hover:text-rose-700 hover:bg-rose-50 text-xs font-medium"
+                                  disabled={updatingOrderId === order.id}
+                                  onClick={() => handleStatusChange(order, 'Cancelled', true)}
+                                >
+                                  Cancel
+                                </Button>
+                              </>
+                            )}
+
+                            {order.status === 'Preparing' && (
+                              <>
+                                <Button
+                                  size="sm"
+                                  className="h-7.5 px-3 bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold shadow-xs"
+                                  disabled={updatingOrderId === order.id}
+                                  onClick={() => handleStatusChange(order, 'Ready')}
+                                >
+                                  {updatingOrderId === order.id ? (
+                                    <Loader2 className="size-3.5 mr-1.5 animate-spin" />
+                                  ) : (
+                                    <PackageCheck className="size-3.5 mr-1.5" />
+                                  )}
+                                  Mark Ready
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-7.5 px-2.5 text-rose-600 hover:text-rose-700 hover:bg-rose-50 text-xs font-medium"
+                                  disabled={updatingOrderId === order.id}
+                                  onClick={() => handleStatusChange(order, 'Cancelled', true)}
+                                >
+                                  Cancel Order
+                                </Button>
+                              </>
+                            )}
+
+                            {order.status === 'Ready' && (
+                              <Button
+                                size="sm"
+                                className="h-7.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-xs"
+                                disabled={updatingOrderId === order.id}
+                                onClick={() => handleStatusChange(order, 'Completed')}
+                              >
+                                {updatingOrderId === order.id ? (
+                                  <Loader2 className="size-3.5 mr-1.5 animate-spin" />
+                                ) : (
+                                  <CheckCircle2 className="size-3.5 mr-1.5" />
+                                )}
+                                Complete Order
+                              </Button>
+                            )}
+
+                            {order.status === 'Cancelled' && (
+                              <span className="text-[11px] text-muted-foreground italic">
+                                {order.cancellation_reason ? `Reason: ${order.cancellation_reason}` : 'Order was cancelled'}
+                              </span>
+                            )}
+                          </div>
                         </div>
                         <div className="text-right shrink-0">
                           <p className="font-semibold text-gold tabular-nums text-base">
@@ -426,6 +630,63 @@ export default function OrdersPage() {
           </div>
         </div>
       </div>
+
+      {/* Shortages Rejection Dialog */}
+      <Dialog
+        open={shortageInfo.open}
+        onOpenChange={(open) => setShortageInfo((prev) => ({ ...prev, open }))}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-rose-600 font-bold">
+              <AlertTriangle className="size-5 shrink-0" />
+              Insufficient Stock
+            </DialogTitle>
+            <DialogDescription>
+              Order <strong>{shortageInfo.orderRef}</strong> cannot start preparation because required ingredient stock is insufficient.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 py-2">
+            <div className="rounded-lg border border-rose-200 bg-rose-50/70 p-3 text-xs text-rose-800 leading-relaxed">
+              Preparation was blocked to prevent negative inventory. No stock was deducted. Please restock these ingredients:
+            </div>
+
+            <div className="rounded-xl border border-slate-200 divide-y divide-slate-100 overflow-hidden text-sm bg-white shadow-xs">
+              {shortageInfo.shortages.map((s, idx) => (
+                <div key={idx} className="p-3 flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="font-semibold text-slate-900 truncate">{s.name}</p>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Available: <span className="font-semibold text-amber-700">{s.available} {s.unit}</span>
+                    </p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="text-xs text-slate-500">Need: <span className="font-semibold">{s.required} {s.unit}</span></p>
+                    <span className="inline-block mt-1 text-[11px] font-bold px-2 py-0.5 rounded bg-rose-50 border border-rose-200 text-rose-700">
+                      Short: {s.shortage} {s.unit}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <DialogFooter className="flex sm:justify-between items-center gap-2">
+            <Button asChild variant="outline" className="border-slate-300">
+              <Link to="/inventory">
+                Go to Inventory <ArrowRight className="size-3.5 ml-1.5" />
+              </Link>
+            </Button>
+            <Button
+              className="bg-[#e11d48] hover:bg-[#be123c] text-white"
+              onClick={() => setShortageInfo({ open: false, shortages: [] })}
+            >
+              Understood
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }

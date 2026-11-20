@@ -318,3 +318,55 @@ export const useDeleteOrder = () => {
     },
   });
 };
+
+export const useUpdateOrderStatus = () => {
+  const queryClient = useQueryClient();
+  return useMutation<any, Error, { id: string; status: string; cancellation_reason?: string }>({
+    mutationFn: ({ id, status, cancellation_reason }) =>
+      ordersAPI.updateStatus(id, { status, cancellation_reason }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+      queryClient.invalidateQueries({ queryKey: ['inventory'] });
+      queryClient.invalidateQueries({ queryKey: ['lowStockItems'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboardStats'] });
+      queryClient.invalidateQueries({ queryKey: ['inventoryMovements'] });
+      queryClient.invalidateQueries({ queryKey: ['menuItems'] });
+    },
+  });
+};
+
+export const useOrderRequirements = (orderId: string | null | undefined) => {
+  return useQuery({
+    queryKey: ['orderRequirements', orderId],
+    queryFn: async () => {
+      if (!orderId) return null;
+      const response = await ordersAPI.getRequirements(orderId);
+      return response.data;
+    },
+    enabled: Boolean(orderId),
+  });
+};
+
+export const useInventoryMovements = () => {
+  return useQuery({
+    queryKey: ['inventoryMovements'],
+    queryFn: async () => {
+      const response = await inventoryAPI.getMovements();
+      return response.data.data;
+    },
+  });
+};
+
+export const useAdjustStock = () => {
+  const queryClient = useQueryClient();
+  return useMutation<any, Error, { id: string; quantity_change: number; movement_type?: string; notes?: string }>({
+    mutationFn: ({ id, ...data }) => inventoryAPI.adjustStock(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['inventory'] });
+      queryClient.invalidateQueries({ queryKey: ['lowStockItems'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboardStats'] });
+      queryClient.invalidateQueries({ queryKey: ['inventoryMovements'] });
+      queryClient.invalidateQueries({ queryKey: ['menuItems'] });
+    },
+  });
+};
