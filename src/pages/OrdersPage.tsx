@@ -18,7 +18,6 @@ import {
   Loader2,
   Receipt,
   ShoppingBag,
-  AlertTriangle,
   CheckCircle2,
   Clock,
   History,
@@ -53,8 +52,6 @@ export default function OrdersPage() {
 
   const [selectedId, setSelectedId] = useState('');
   const [cart, setCart] = useState<OrderItem[]>([]);
-  const [printerError, setPrinterError] = useState(false);
-  const [lastRef, setLastRef] = useState('');
 
   const availableItems = useMemo(() => menuItems, [menuItems]);
 
@@ -116,11 +113,9 @@ export default function OrdersPage() {
         total_amount: subtotal,
       });
       const ref = result?.data?.data?.order_ref ?? result?.data?.order_ref ?? '—';
-      setLastRef(ref);
       clearCart();
-      setPrinterError(true);
       await ordersRefetch();
-      toast.success('Order recorded in database');
+      toast.success(`Order ${ref} placed successfully`);
     } catch (err: any) {
       console.error('Order creation error:', err);
       const msg = err?.response?.data?.error || err?.message || 'Could not place order. Please try again.';
@@ -165,26 +160,6 @@ export default function OrdersPage() {
 
   return (
     <DashboardLayout title="Orders" subtitle="Place orders and track sales">
-      {/* ── Printer error banner ── */}
-      {printerError && (
-        <div className="mb-6 flex items-center gap-3 rounded-xl border border-destructive/40 bg-destructive/10 px-5 py-4">
-          <AlertTriangle className="size-6 text-destructive shrink-0" />
-          <div className="flex-1">
-            <p className="font-semibold text-destructive">PLEASE CONNECT THE BILL PRINTER</p>
-            <p className="text-sm text-muted-foreground">
-              Order <span className="font-mono font-medium text-foreground">{lastRef}</span> was saved to the database.
-              Bill will print once the printer is connected.
-            </p>
-          </div>
-          <button
-            className="shrink-0 rounded-lg px-3 py-1.5 text-xs font-medium text-destructive hover:bg-destructive/10 border border-destructive/30"
-            onClick={() => setPrinterError(false)}
-          >
-            Dismiss
-          </button>
-        </div>
-      )}
-
       {/* Two-Column Layout: Left for Placing Orders, Right for Order History */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* ── LEFT COLUMN: Select & Cart (5 cols on lg) ── */}
@@ -306,7 +281,7 @@ export default function OrdersPage() {
                   </>
                 ) : (
                   <>
-                    <Receipt className="size-4 mr-2" /> Place Order &amp; Generate Bill
+                    <ShoppingBag className="size-4 mr-2" /> Place Order
                   </>
                 )}
               </Button>
