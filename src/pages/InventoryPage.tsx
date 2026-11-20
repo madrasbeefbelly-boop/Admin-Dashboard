@@ -242,7 +242,7 @@ export default function InventoryPage() {
   return (
     <DashboardLayout title="Inventory" subtitle="Track your stock levels and supplies">
       {/* Stats Summary */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      <div className="summary-counts mb-6 grid grid-cols-3 gap-2 md:gap-4">
         <div className="stat-card">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-gold/10 flex items-center justify-center">

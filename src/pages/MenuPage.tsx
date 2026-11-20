@@ -262,7 +262,7 @@ export default function MenuPage() {
   return (
     <DashboardLayout title="Menu & Costing" subtitle="Manage your dishes and pricing">
       {/* Stats Summary */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      <div className="summary-counts mb-6 grid grid-cols-3 gap-2 md:gap-4">
         <div className="stat-card">
           <div className="flex items-center gap-3">
             <div className="size-10 rounded-xl bg-rose-50 flex items-center justify-center">
@@ -513,9 +513,6 @@ export default function MenuPage() {
                 <div className="relative mb-3 h-44 w-full overflow-hidden rounded-xl bg-slate-100">
                   <DishCardImage src={item.image_url} name={item.name} aspectRatio="banner" />
                   <div className="absolute top-2.5 left-2.5 flex flex-col gap-1 items-start">
-                    <Badge className={cn('border backdrop-blur-md shadow-xs', categoryColors[item.category])}>
-                      {item.category}
-                    </Badge>
                     {item.ingredients && item.ingredients.length > 0 ? (
                       item.is_in_stock === false || item.servings_available === 0 ? (
                         <Badge className="bg-rose-600/90 text-white font-bold text-[10px] backdrop-blur-md border-0 shadow-sm">
@@ -553,6 +550,9 @@ export default function MenuPage() {
                   </div>
                 </div>
 
+                <Badge variant="outline" className={cn('mb-2', categoryColors[item.category])}>
+                  {item.category}
+                </Badge>
                 <div className="flex items-center justify-between gap-2 mb-1">
                   <h3 className="font-display text-lg font-bold text-slate-900 truncate">
                     {item.name}
@@ -568,9 +568,6 @@ export default function MenuPage() {
                   <p className="text-[11px] text-slate-400 mb-2 italic">No recipe linked</p>
                 )}
 
-                {item.description && (
-                  <p className="text-xs text-slate-400 mb-3 line-clamp-2">{item.description}</p>
-                )}
               </div>
 
               <div className="grid grid-cols-3 gap-2 pt-3 border-t border-slate-100 mt-3">
@@ -612,24 +609,21 @@ export default function MenuPage() {
               {/* Left: Large Food Image + Big Dish Typography */}
               <div className="flex items-center gap-4 sm:gap-6 min-w-0 flex-1">
                 {/* Large Food Image */}
-                <div className="relative size-24 sm:size-28 md:w-36 md:h-28 shrink-0 overflow-hidden rounded-2xl border border-slate-200/80 bg-slate-100 shadow-xs">
-                  <DishCardImage src={item.image_url} name={item.name} aspectRatio="square" />
+                <div className="flex w-24 shrink-0 flex-col items-start gap-2 sm:w-28 md:w-36">
+                  <div className="relative h-24 w-full overflow-hidden rounded-2xl border border-slate-200/80 bg-slate-100 shadow-xs sm:h-28">
+                    <DishCardImage src={item.image_url} name={item.name} aspectRatio="square" />
+                  </div>
+                  <Badge variant="outline" className={cn('max-w-full wrap-anywhere', categoryColors[item.category])}>
+                    {item.category}
+                  </Badge>
                 </div>
 
                 {/* Dish Info */}
                 <div className="min-w-0 flex-1 space-y-1.5">
                   <div className="flex items-center gap-2.5 flex-wrap">
-                    <h3 className="font-display text-xl sm:text-2xl font-bold text-slate-900 group-hover:text-[#e11d48] transition-colors truncate">
+                    <h3 className="font-display text-xl sm:text-2xl font-bold text-slate-900 group-hover:text-[#e11d48] transition-colors wrap-anywhere">
                       {item.name}
                     </h3>
-                    <Badge
-                      className={cn(
-                        'text-xs font-bold px-3 py-1 rounded-lg border shadow-xs',
-                        categoryColors[item.category]
-                      )}
-                    >
-                      {item.category}
-                    </Badge>
                     {item.ingredients && item.ingredients.length > 0 ? (
                       item.is_in_stock === false || item.servings_available === 0 ? (
                         <Badge variant="outline" className="text-xs font-bold px-2.5 py-0.5 rounded-lg border-rose-200 bg-rose-50 text-rose-700">
@@ -657,17 +651,12 @@ export default function MenuPage() {
                       </span>
                     )}
                   </div>
-                  {item.description && (
-                    <p className="text-xs sm:text-sm text-slate-500 line-clamp-2 max-w-xl">
-                      {item.description}
-                    </p>
-                  )}
                 </div>
               </div>
 
               {/* Right: Metrics (Cost, Selling Price, Margin) + Action Buttons */}
-              <div className="flex items-center justify-between lg:justify-end gap-6 sm:gap-8 pt-3 lg:pt-0 border-t lg:border-t-0 border-slate-100 shrink-0">
-                <div className="text-left sm:text-center min-w-[70px]">
+              <div className="grid grid-cols-3 items-center gap-3 border-t border-slate-100 pt-3 lg:flex lg:shrink-0 lg:justify-end lg:gap-8 lg:border-t-0 lg:pt-0">
+                <div className="text-left sm:text-center lg:min-w-[70px]">
                   <span className="text-[11px] sm:text-xs text-slate-400 font-semibold block uppercase tracking-wider">
                     Cost
                   </span>
@@ -676,7 +665,7 @@ export default function MenuPage() {
                   </span>
                 </div>
 
-                <div className="text-left sm:text-center min-w-[85px]">
+                <div className="text-left sm:text-center lg:min-w-[85px]">
                   <span className="text-[11px] sm:text-xs text-slate-400 font-semibold block uppercase tracking-wider">
                     Price
                   </span>
@@ -685,7 +674,7 @@ export default function MenuPage() {
                   </span>
                 </div>
 
-                <div className="text-left sm:text-center min-w-[75px]">
+                <div className="text-left sm:text-center lg:min-w-[75px]">
                   <span className="text-[11px] sm:text-xs text-slate-400 font-semibold block uppercase tracking-wider">
                     Margin
                   </span>
@@ -706,7 +695,7 @@ export default function MenuPage() {
                 </div>
 
                 {/* Edit & Delete Action Buttons */}
-                <div className="flex items-center gap-2 pl-3 sm:pl-5 border-l border-slate-200/80">
+                <div className="col-span-3 flex items-center justify-end gap-2 lg:border-l lg:border-slate-200/80 lg:pl-5">
                   <Button
                     variant="outline"
                     size="icon"
