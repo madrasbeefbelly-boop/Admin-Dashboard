@@ -16,9 +16,9 @@ interface StatCardProps {
 export function StatCard({ title, value, subtitle, icon: Icon, trend, variant = 'default' }: StatCardProps) {
   const variantStyles = {
     default: 'bg-card',
-    gold: 'bg-gradient-to-br from-gold/10 to-gold/5 border-gold/20',
-    success: 'bg-gradient-to-br from-success/10 to-success/5 border-success/20',
-    warning: 'bg-gradient-to-br from-warning/10 to-warning/5 border-warning/20',
+    gold: 'bg-card border-gold/30',
+    success: 'bg-card border-success/30',
+    warning: 'bg-card border-warning/30',
   };
 
   const iconStyles = {

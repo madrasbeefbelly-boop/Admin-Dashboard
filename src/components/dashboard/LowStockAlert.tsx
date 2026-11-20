@@ -25,7 +25,7 @@ export function LowStockAlert({ items }: LowStockAlertProps) {
   }
 
   return (
-    <div className="card-premium p-6 border-warning/20 bg-gradient-to-br from-warning/5 to-transparent">
+    <div className="card-premium p-6 border-warning/30">
       <div className="flex items-center gap-3 mb-4">
         <div className="w-10 h-10 rounded-xl bg-warning/10 flex items-center justify-center">
           <AlertTriangle className="w-5 h-5 text-warning" />
