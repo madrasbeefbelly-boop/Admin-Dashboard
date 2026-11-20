@@ -496,98 +496,115 @@ export default function MenuPage() {
           ))}
         </div>
       ) : (
-        /* ── LIST VIEW ── */
-        <div className="card-premium overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-slate-50/80 border-b border-slate-100 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                <tr>
-                  <th className="py-3.5 px-4">Dish</th>
-                  <th className="py-3.5 px-4">Category</th>
-                  <th className="py-3.5 px-4">Cost</th>
-                  <th className="py-3.5 px-4">Selling Price</th>
-                  <th className="py-3.5 px-4">Margin</th>
-                  <th className="py-3.5 px-4 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {filteredItems.map((item) => (
-                  <tr key={item.id} className="hover:bg-slate-50/60 transition-colors group">
-                    <td className="py-3 px-4">
-                      <div className="flex items-center gap-3">
-                        <img
-                          src={item.image_url || `/MBB - Images/${item.name}.jpg`}
-                          alt={item.name}
-                          loading="lazy"
-                          className="size-12 rounded-xl object-cover border border-slate-200 shrink-0 shadow-xs"
-                          onError={(e) => {
-                            (e.target as HTMLElement).style.display = 'none';
-                          }}
-                        />
-                        <div className="min-w-0">
-                          <p className="font-bold text-sm text-slate-900 group-hover:text-[#e11d48] transition-colors truncate">
-                            {item.name}
-                          </p>
-                          {item.description && (
-                            <p className="text-xs text-slate-400 truncate max-w-xs">
-                              {item.description}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="py-3 px-4 whitespace-nowrap">
-                      <Badge className={cn('border text-xs font-semibold px-2 py-0.5 shadow-xs', categoryColors[item.category])}>
-                        {item.category}
-                      </Badge>
-                    </td>
-                    <td className="py-3 px-4 whitespace-nowrap text-xs font-semibold text-slate-600">
-                      {formatPrice(item.cost_per_serving)}
-                    </td>
-                    <td className="py-3 px-4 whitespace-nowrap text-xs font-bold text-[#e11d48]">
-                      {formatPrice(item.selling_price)}
-                    </td>
-                    <td className="py-3 px-4 whitespace-nowrap">
-                      <span
-                        className={cn(
-                          'text-xs font-bold px-2 py-1 rounded-md inline-block',
-                          item.margin_percent == null
-                            ? 'text-slate-400 bg-slate-100'
-                            : Number(item.margin_percent) >= 50
-                            ? 'text-emerald-700 bg-emerald-50'
-                            : 'text-amber-700 bg-amber-50'
-                        )}
-                      >
-                        {item.margin_percent == null ? '—' : Number(item.margin_percent).toFixed(0) + '%'}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4 whitespace-nowrap text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="size-8 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100"
-                          aria-label={'Edit ' + item.name}
-                          onClick={() => openDishForm(item)}
-                        >
-                          <Pencil className="size-3.5" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="size-8 rounded-lg text-slate-400 hover:text-destructive hover:bg-rose-50"
-                          aria-label={'Delete ' + item.name}
-                          onClick={() => handleDeleteDish(item.id)}
-                        >
-                          <Trash2 className="size-3.5" />
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+        /* ── EXPANDED LIST CARDS VIEW (LARGE IMAGES & TEXTS) ── */
+        <div className="space-y-4">
+          {filteredItems.map((item) => (
+            <div
+              key={item.id}
+              className="card-premium p-4 sm:p-5 rounded-2xl flex flex-col lg:flex-row lg:items-center justify-between gap-5 hover:border-[#e11d48]/40 hover:shadow-md transition-all duration-200 group"
+            >
+              {/* Left: Large Food Image + Big Dish Typography */}
+              <div className="flex items-center gap-4 sm:gap-6 min-w-0 flex-1">
+                {/* Large Food Image */}
+                <div className="relative size-24 sm:size-28 md:w-36 md:h-28 shrink-0 overflow-hidden rounded-2xl border border-slate-200/80 bg-slate-100 shadow-xs">
+                  <img
+                    src={item.image_url || `/MBB - Images/${item.name}.jpg`}
+                    alt={item.name}
+                    loading="lazy"
+                    className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                    onError={(e) => {
+                      (e.target as HTMLElement).style.display = 'none';
+                    }}
+                  />
+                </div>
+
+                {/* Dish Info */}
+                <div className="min-w-0 flex-1 space-y-1.5">
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <h3 className="font-display text-xl sm:text-2xl font-bold text-slate-900 group-hover:text-[#e11d48] transition-colors truncate">
+                      {item.name}
+                    </h3>
+                    <Badge
+                      className={cn(
+                        'text-xs font-bold px-3 py-1 rounded-lg border shadow-xs',
+                        categoryColors[item.category]
+                      )}
+                    >
+                      {item.category}
+                    </Badge>
+                  </div>
+                  {item.description && (
+                    <p className="text-xs sm:text-sm text-slate-500 line-clamp-2 max-w-xl">
+                      {item.description}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Right: Metrics (Cost, Selling Price, Margin) + Action Buttons */}
+              <div className="flex items-center justify-between lg:justify-end gap-6 sm:gap-8 pt-3 lg:pt-0 border-t lg:border-t-0 border-slate-100 shrink-0">
+                <div className="text-left sm:text-center min-w-[70px]">
+                  <span className="text-[11px] sm:text-xs text-slate-400 font-semibold block uppercase tracking-wider">
+                    Cost
+                  </span>
+                  <span className="font-bold text-base sm:text-lg text-slate-700">
+                    {formatPrice(item.cost_per_serving)}
+                  </span>
+                </div>
+
+                <div className="text-left sm:text-center min-w-[85px]">
+                  <span className="text-[11px] sm:text-xs text-slate-400 font-semibold block uppercase tracking-wider">
+                    Price
+                  </span>
+                  <span className="font-extrabold text-xl sm:text-2xl text-[#e11d48]">
+                    {formatPrice(item.selling_price)}
+                  </span>
+                </div>
+
+                <div className="text-left sm:text-center min-w-[75px]">
+                  <span className="text-[11px] sm:text-xs text-slate-400 font-semibold block uppercase tracking-wider">
+                    Margin
+                  </span>
+                  <span
+                    className={cn(
+                      'font-bold text-xs sm:text-sm px-3 py-1 rounded-lg inline-block shadow-xs',
+                      item.margin_percent == null
+                        ? 'text-slate-400 bg-slate-100'
+                        : Number(item.margin_percent) >= 50
+                        ? 'text-emerald-700 bg-emerald-50 border border-emerald-200/60'
+                        : 'text-amber-700 bg-amber-50 border border-amber-200/60'
+                    )}
+                  >
+                    {item.margin_percent == null
+                      ? '—'
+                      : Number(item.margin_percent).toFixed(0) + '%'}
+                  </span>
+                </div>
+
+                {/* Edit & Delete Action Buttons */}
+                <div className="flex items-center gap-2 pl-3 sm:pl-5 border-l border-slate-200/80">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="size-10 rounded-xl border-slate-200 text-slate-700 hover:text-slate-900 hover:bg-slate-100 shadow-xs"
+                    aria-label={'Edit ' + item.name}
+                    onClick={() => openDishForm(item)}
+                  >
+                    <Pencil className="size-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="size-10 rounded-xl border-rose-200 text-rose-500 hover:text-rose-700 hover:bg-rose-50 shadow-xs"
+                    aria-label={'Delete ' + item.name}
+                    onClick={() => handleDeleteDish(item.id)}
+                  >
+                    <Trash2 className="size-4" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
       )}
 
