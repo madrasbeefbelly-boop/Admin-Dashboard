@@ -19,7 +19,7 @@ import {
   Loader2,
   Receipt,
   ShoppingBag,
-  PrinterX,
+  AlertTriangle,
   CheckCircle2,
   Clock,
 } from 'lucide-react';
@@ -145,7 +145,7 @@ export default function OrdersPage() {
       {/* ── Printer error banner ── */}
       {printerError && (
         <div className="mb-5 flex items-center gap-3 rounded-xl border border-destructive/40 bg-destructive/10 px-5 py-4">
-          <PrinterX className="size-6 text-destructive shrink-0" />
+          <AlertTriangle className="size-6 text-destructive shrink-0" />
           <div className="flex-1">
             <p className="font-semibold text-destructive">PLEASE CONNECT THE BILL PRINTER</p>
             <p className="text-sm text-muted-foreground">
