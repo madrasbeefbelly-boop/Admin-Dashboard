@@ -15,28 +15,36 @@ import session from 'express-session';
 import passport from 'passport';
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 import Stripe from 'stripe';
+import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { readFileSync } from 'node:fs';
 
 // Load environment variables
-dotenv.config();
+const hosted = process.env.VERCEL === '1';
+if (!hosted) dotenv.config();
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SECRET_KEY) : null;
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 const JWT_SECRET = process.env.JWT_SECRET;
 const SESSION_SECRET = process.env.SESSION_SECRET || process.env.JWT_SECRET;
-const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:8080';
+const FRONTEND_URL = process.env.FRONTEND_URL ||
+  (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : 'http://localhost:8080');
+const googleEnabled = !hosted && Boolean(
+  process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET && process.env.GOOGLE_CALLBACK_URL
+);
 
 // Middleware - CORS configuration with allowlist
 const allowedOrigins = process.env.CORS_ORIGINS 
   ? process.env.CORS_ORIGINS.split(',')
-  : ['http://localhost:8080', 'http://localhost:3000'];
+  : hosted ? [FRONTEND_URL] : ['http://localhost:8080', 'http://localhost:3000'];
 
 const corsOptions = {
   origin: (origin, callback) => {
     // Allow requests with no origin (mobile apps, Postman, etc.)
     if (!origin) return callback(null, true);
-    
+
     if (allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
@@ -54,79 +62,98 @@ app.use(express.json());
 app.use(cookieParser());
 
 // Session middleware (required for Passport)
-app.use(session({
-  secret: SESSION_SECRET,
-  resave: false,
-  saveUninitialized: false,
-  cookie: { 
-    secure: process.env.NODE_ENV === 'production',
-    maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
-  }
-}));
+if (googleEnabled) {
+  app.use(session({
+    secret: SESSION_SECRET,
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      secure: process.env.NODE_ENV === 'production',
+      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+    }
+  }));
 
-// Initialize Passport
-app.use(passport.initialize());
-app.use(passport.session());
+  // Initialize Passport
+  app.use(passport.initialize());
+  app.use(passport.session());
 
-// Passport serialization
-passport.serializeUser((user, done) => {
-  done(null, user.id);
-});
+  // Passport serialization
+  passport.serializeUser((user, done) => {
+    done(null, user.id);
+  });
 
-passport.deserializeUser(async (id, done) => {
-  try {
-    const result = await pool.query('SELECT * FROM users WHERE id = $1', [id]);
-    done(null, result.rows[0]);
-  } catch (error) {
-    done(error, null);
-  }
-});
-
-// Google OAuth Strategy
-passport.use(new GoogleStrategy({
-    clientID: process.env.GOOGLE_CLIENT_ID,
-    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    callbackURL: process.env.GOOGLE_CALLBACK_URL
-  },
-  async (accessToken, refreshToken, profile, done) => {
+  passport.deserializeUser(async (id, done) => {
     try {
-      // Check if user exists
-      const existingUser = await pool.query(
-        'SELECT * FROM users WHERE email = $1',
-        [profile.emails[0].value]
-      );
-
-      if (existingUser.rows.length > 0) {
-        // User exists, return user
-        return done(null, existingUser.rows[0]);
-      }
-
-      // Create new user
-      const newUser = await pool.query(`
-        INSERT INTO users (email, first_name, last_name, role, is_active, oauth_provider, oauth_id)
-        VALUES ($1, $2, $3, 'user', true, 'google', $4)
-        RETURNING *
-      `, [
-        profile.emails[0].value,
-        profile.name.givenName,
-        profile.name.familyName,
-        profile.id
-      ]);
-
-      done(null, newUser.rows[0]);
+      const result = await pool.query('SELECT * FROM users WHERE id = $1', [id]);
+      done(null, result.rows[0]);
     } catch (error) {
       done(error, null);
     }
-  }
-));
+  });
+
+  // Google OAuth Strategy
+  passport.use(new GoogleStrategy({
+      clientID: process.env.GOOGLE_CLIENT_ID,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+      callbackURL: process.env.GOOGLE_CALLBACK_URL
+    },
+    async (accessToken, refreshToken, profile, done) => {
+      try {
+        // Check if user exists
+        const existingUser = await pool.query(
+          'SELECT * FROM users WHERE email = $1',
+          [profile.emails[0].value]
+        );
+
+        if (existingUser.rows.length > 0) {
+          // User exists, return user
+          return done(null, existingUser.rows[0]);
+        }
+
+        // Create new user
+        const newUser = await pool.query(`
+          INSERT INTO users (email, first_name, last_name, role, is_active, oauth_provider, oauth_id)
+          VALUES ($1, $2, $3, 'user', true, 'google', $4)
+          RETURNING *
+        `, [
+          profile.emails[0].value,
+          profile.name.givenName,
+          profile.name.familyName,
+          profile.id
+        ]);
+
+        done(null, newUser.rows[0]);
+      } catch (error) {
+        done(error, null);
+      }
+    }
+  ));
+}
 
 // Database connection
+const databaseUrl = process.env.DATABASE_URL ? new URL(process.env.DATABASE_URL) : null;
+const isSupabaseDatabase = databaseUrl && (
+  databaseUrl.hostname.endsWith('.pooler.supabase.com') ||
+  /^db\.[a-z0-9]+\.supabase\.co$/.test(databaseUrl.hostname)
+);
+if (isSupabaseDatabase) {
+  for (const parameter of ['sslmode', 'sslcert', 'sslkey', 'sslrootcert', 'ssl']) {
+    databaseUrl.searchParams.delete(parameter);
+  }
+}
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
+  connectionString: databaseUrl?.href,
+  ...(isSupabaseDatabase && {
+    ssl: {
+      ca: readFileSync(new URL('./certificates/supabase-root-2021.crt', import.meta.url)),
+      rejectUnauthorized: true,
+    },
+  }),
+  ...(hosted && { max: 4, connectionTimeoutMillis: 5000 }),
 });
 
 // Test database connection
-pool.query('SELECT NOW()', (err, res) => {
+if (!hosted) pool.query('SELECT NOW()', (err, res) => {
   if (err) {
     console.error('❌ Database connection failed:', err);
   } else {
@@ -169,12 +196,15 @@ const requireAdmin = (req, res, next) => {
 
 // Register new user
 app.post('/api/auth/register', async (req, res) => {
-  const { email, password, firstName, lastName, phone, role = 'user' } = req.body;
+  if (hosted) {
+    return res.status(403).json({ success: false, error: 'Ask the dashboard owner for an account.' });
+  }
+  const { email, password, firstName, lastName, phone } = req.body;
 
   try {
     // Check if user already exists
     const existingUser = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
-    
+
     if (existingUser.rows.length > 0) {
       return res.status(400).json({ success: false, error: 'User with this email already exists' });
     }
@@ -188,7 +218,7 @@ app.post('/api/auth/register', async (req, res) => {
       INSERT INTO users (email, password_hash, first_name, last_name, phone, role, is_active)
       VALUES ($1, $2, $3, $4, $5, $6, true)
       RETURNING id, email, first_name, last_name, phone, role, created_at
-    `, [email, passwordHash, firstName, lastName, phone, role]);
+    `, [email, passwordHash, firstName, lastName, phone, 'user']);
 
     const user = result.rows[0];
 
@@ -218,7 +248,10 @@ app.post('/api/auth/register', async (req, res) => {
 
 // Login user
 app.post('/api/auth/login', async (req, res) => {
-  const { email, password } = req.body;
+  const { email, password } = req.body ?? {};
+  if (typeof email !== 'string' || typeof password !== 'string') {
+    return res.status(400).json({ success: false, error: 'Email and password are required.' });
+  }
 
   try {
     // Find user
@@ -226,7 +259,8 @@ app.post('/api/auth/login', async (req, res) => {
       SELECT id, email, password_hash, first_name, last_name, phone, role, is_active
       FROM users
       WHERE email = $1 AND deleted_at IS NULL
-    `, [email]);
+        AND (NOT $2::boolean OR business_id IS NOT NULL)
+    `, [email.trim(), hosted]);
 
     if (result.rows.length === 0) {
       return res.status(401).json({ success: false, error: 'Invalid email or password' });
@@ -241,7 +275,7 @@ app.post('/api/auth/login', async (req, res) => {
 
     // Verify password
     const isValidPassword = await bcrypt.compare(password, user.password_hash);
-    
+
     if (!isValidPassword) {
       return res.status(401).json({ success: false, error: 'Invalid email or password' });
     }
@@ -259,7 +293,8 @@ app.post('/api/auth/login', async (req, res) => {
     // Set cookie
     res.cookie('token', token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: hosted || process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
       maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
     });
 
@@ -268,11 +303,11 @@ app.post('/api/auth/login', async (req, res) => {
 
     res.json({
       success: true,
-      data: { user, token }
+      data: hosted ? { user } : { user, token }
     });
   } catch (error) {
     console.error('Error logging in:', error);
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: 'Sign-in is temporarily unavailable.' });
   }
 });
 
@@ -281,6 +316,19 @@ app.post('/api/auth/logout', (req, res) => {
   res.clearCookie('token');
   res.json({ success: true, message: 'Logged out successfully' });
 });
+
+// Hosted business data is available only to active members of the dashboard.
+if (hosted) {
+  app.use('/api', authenticateToken, async (req, res, next) => {
+    const { rows } = await pool.query(
+      'SELECT role FROM users WHERE id = $1 AND is_active AND deleted_at IS NULL AND business_id IS NOT NULL',
+      [req.user.id]
+    );
+    if (!rows.length) return res.status(403).json({ success: false, error: 'Account has no dashboard access.' });
+    req.user.role = rows[0].role;
+    next();
+  });
+}
 
 // Get current user
 app.get('/api/auth/me', authenticateToken, async (req, res) => {
@@ -303,37 +351,39 @@ app.get('/api/auth/me', authenticateToken, async (req, res) => {
 });
 
 // Google OAuth routes
-app.get('/api/auth/google',
-  passport.authenticate('google', { scope: ['profile', 'email'] })
-);
+if (googleEnabled) {
+  app.get('/api/auth/google',
+    passport.authenticate('google', { scope: ['profile', 'email'] })
+  );
 
-app.get('/api/auth/google/callback',
-  passport.authenticate('google', { failureRedirect: `${FRONTEND_URL}/login` }),
-  async (req, res) => {
-    try {
-      // Generate JWT token for the user
-      const token = jwt.sign(
-        { id: req.user.id, email: req.user.email, role: req.user.role },
-        JWT_SECRET,
-        { expiresIn: '7d' }
-      );
+  app.get('/api/auth/google/callback',
+    passport.authenticate('google', { failureRedirect: `${FRONTEND_URL}/login` }),
+    async (req, res) => {
+      try {
+        // Generate JWT token for the user
+        const token = jwt.sign(
+          { id: req.user.id, email: req.user.email, role: req.user.role },
+          JWT_SECRET,
+          { expiresIn: '7d' }
+        );
 
-      // Set cookie
-      res.cookie('token', token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
-      });
+        // Set cookie
+        res.cookie('token', token, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+        });
 
-      // Redirect to frontend (token is already in HTTP-only cookie)
-      // No sensitive data in URL
-      res.redirect(`${FRONTEND_URL}/auth/callback`);
-    } catch (error) {
-      console.error('OAuth callback error:', error);
-      res.redirect(`${FRONTEND_URL}/login?error=oauth_failed`);
+        // Redirect to frontend (token is already in HTTP-only cookie)
+        // No sensitive data in URL
+        res.redirect(`${FRONTEND_URL}/auth/callback`);
+      } catch (error) {
+        console.error('OAuth callback error:', error);
+        res.redirect(`${FRONTEND_URL}/login?error=oauth_failed`);
+      }
     }
-  }
-);
+  );
+}
 
 // ============================================================================
 // MENU ITEMS ENDPOINTS
@@ -364,7 +414,7 @@ app.get('/api/menu-items/:id', async (req, res) => {
     const result = await pool.query(`
       SELECT * FROM menu_items WHERE id = $1 AND deleted_at IS NULL
     `, [req.params.id]);
-    
+
     if (result.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Menu item not found' });
     }
@@ -1037,7 +1087,7 @@ app.put('/api/orders/:id', async (req, res) => {
   try {
     // Get order details
     const order = await pool.query(`SELECT total_value FROM orders WHERE id = $1`, [req.params.id]);
-    
+
     if (order.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Order not found' });
     }
@@ -1417,6 +1467,13 @@ app.get('/health', (req, res) => {
 // ============================================================================
 
 // Create payment intent for order
+if (!stripe) {
+  app.use(['/api/payments', '/api/payment-methods', '/api/subscriptions'], (req, res, next) => {
+    if (req.baseUrl === '/api/payments' && req.path === '/config') return next();
+    res.status(503).json({ success: false, error: 'Payment processing is not configured.' });
+  });
+}
+
 app.post('/api/payments/create-intent', authenticateToken, async (req, res) => {
   const { orderId, amount, currency = 'usd', description } = req.body;
 
@@ -1436,7 +1493,7 @@ app.post('/api/payments/create-intent', authenticateToken, async (req, res) => {
         metadata: { userId: req.user.id }
       });
       stripeCustomerId = customer.id;
-      
+
       await pool.query(
         'UPDATE users SET stripe_customer_id = $1 WHERE id = $2',
         [stripeCustomerId, req.user.id]
@@ -1790,7 +1847,7 @@ app.put('/api/notifications/:id/read', authenticateToken, async (req, res) => {
       WHERE id = $1 AND user_id = $2
       RETURNING *
     `, [req.params.id, req.user.id]);
-    
+
     if (result.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Notification not found' });
     }
@@ -1811,7 +1868,7 @@ app.put('/api/notifications/read-all', authenticateToken, async (req, res) => {
       WHERE user_id = $1 AND is_read = false
       RETURNING *
     `, [req.user.id]);
-    
+
     res.json({ success: true, message: 'All notifications marked as read', count: result.rowCount });
   } catch (error) {
     console.error('Error marking all notifications as read:', error);
@@ -1834,36 +1891,40 @@ app.use((err, req, res, next) => {
 // START SERVER
 // ============================================================================
 
-app.listen(PORT, process.env.HOST, () => {
-  console.log(`\n🍽️  Madras Beef Belly API`);
-  console.log(`✅ Server running on http://localhost:${PORT}`);
-  console.log(`📊 Frontend: http://localhost:8080`);
-  console.log(`🗄️  Database: ${process.env.DB_NAME || 'restaurant_inventory_manager'}`);
-  console.log(`\n📚 Available endpoints:`);
-  console.log(`   GET    /api/menu-items`);
-  console.log(`   POST   /api/menu-items`);
-  console.log(`   PUT    /api/menu-items/:id`);
-  console.log(`   DELETE /api/menu-items/:id`);
-  console.log(`   GET    /api/inventory`);
-  console.log(`   POST   /api/inventory`);
-  console.log(`   PUT    /api/inventory/:id`);
-  console.log(`   PUT    /api/inventory/:id/stock`);
-  console.log(`   GET    /api/purchases`);
-  console.log(`   POST   /api/purchases`);
-  console.log(`   GET    /api/orders`);
-  console.log(`   POST   /api/orders`);
-  console.log(`   PUT    /api/orders/:id`);
-  console.log(`   GET    /api/search?q=query`);
-  console.log(`   GET    /api/profile`);
-  console.log(`   PUT    /api/profile`);
-  console.log(`   GET    /api/dashboard/stats`);
-  console.log(`   GET    /api/roles`);
-  console.log(`   POST   /api/roles`);
-  console.log(`   PUT    /api/roles/:id`);
-  console.log(`   GET    /api/staff`);
-  console.log(`   GET    /api/staff/:id`);
-  console.log(`   POST   /api/staff`);
-  console.log(`   PUT    /api/staff/:id`);
-  console.log(`   DELETE /api/staff/:id`);
-  console.log(`\n`);
-});
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  app.listen(PORT, process.env.HOST, () => {
+    console.log(`\n🍽️  Madras Beef Belly API`);
+    console.log(`✅ Server running on http://localhost:${PORT}`);
+    console.log(`📊 Frontend: http://localhost:8080`);
+    console.log(`🗄️  Database: ${process.env.DB_NAME || 'restaurant_inventory_manager'}`);
+    console.log(`\n📚 Available endpoints:`);
+    console.log(`   GET    /api/menu-items`);
+    console.log(`   POST   /api/menu-items`);
+    console.log(`   PUT    /api/menu-items/:id`);
+    console.log(`   DELETE /api/menu-items/:id`);
+    console.log(`   GET    /api/inventory`);
+    console.log(`   POST   /api/inventory`);
+    console.log(`   PUT    /api/inventory/:id`);
+    console.log(`   PUT    /api/inventory/:id/stock`);
+    console.log(`   GET    /api/purchases`);
+    console.log(`   POST   /api/purchases`);
+    console.log(`   GET    /api/orders`);
+    console.log(`   POST   /api/orders`);
+    console.log(`   PUT    /api/orders/:id`);
+    console.log(`   GET    /api/search?q=query`);
+    console.log(`   GET    /api/profile`);
+    console.log(`   PUT    /api/profile`);
+    console.log(`   GET    /api/dashboard/stats`);
+    console.log(`   GET    /api/roles`);
+    console.log(`   POST   /api/roles`);
+    console.log(`   PUT    /api/roles/:id`);
+    console.log(`   GET    /api/staff`);
+    console.log(`   GET    /api/staff/:id`);
+    console.log(`   POST   /api/staff`);
+    console.log(`   PUT    /api/staff/:id`);
+    console.log(`   DELETE /api/staff/:id`);
+    console.log(`\n`);
+  });
+}
+
+export default app;

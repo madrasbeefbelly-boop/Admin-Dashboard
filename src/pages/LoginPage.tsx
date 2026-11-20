@@ -112,12 +112,14 @@ const LoginPage = () => {
 
         {config.googleAuthEnabled && <GoogleButton />}
 
-        <div className="text-center text-sm text-muted-foreground">
-          Don't have an account?{' '}
-          <Link to="/signup" className="text-gold hover:text-gold-light font-medium">
-            Sign up
-          </Link>
-        </div>
+        {config.registrationEnabled && (
+          <div className="text-center text-sm text-muted-foreground">
+            Don't have an account?{' '}
+            <Link to="/signup" className="text-gold hover:text-gold-light font-medium">
+              Sign up
+            </Link>
+          </div>
+        )}
       </form>
     </AuthLayout>
   );
