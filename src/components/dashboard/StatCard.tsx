@@ -77,9 +77,9 @@ export function StatCard({
     >
       <div className="flex items-start justify-between">
         {/* Metric Value & Title */}
-        <div>
+        <div className="stat-card-metric">
           <div className="flex items-center gap-2">
-            <span className="font-display text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 tabular-nums">
+            <span className="stat-card-value font-display text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 tabular-nums">
               {typeof value === 'number' ? value.toLocaleString() : value}
             </span>
             {badge && (

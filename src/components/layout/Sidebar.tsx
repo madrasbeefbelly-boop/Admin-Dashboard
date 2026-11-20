@@ -18,11 +18,9 @@ import { dashboardNavigation, newOrderTarget } from './navigation';
 function SidebarLinks({
   collapsed = false,
   onNavigate,
-  onToggleCollapse,
 }: {
   collapsed?: boolean;
   onNavigate?: () => void;
-  onToggleCollapse?: () => void;
 }) {
   const location = useLocation();
   const { data: profile } = useProfile();
@@ -53,17 +51,6 @@ function SidebarLinks({
               </div>
             )}
           </Link>
-
-          {!collapsed && onToggleCollapse && (
-            <button
-              type="button"
-              onClick={onToggleCollapse}
-              className="text-white/80 hover:text-white p-1 rounded-lg hover:bg-white/10 transition-colors"
-              aria-label="Toggle navigation"
-            >
-              <Menu className="size-5" />
-            </button>
-          )}
         </div>
 
         {/* Navigation Items */}
@@ -153,7 +140,7 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
         collapsed ? 'w-[4.75rem]' : 'w-[16rem]'
       )}
     >
-      <SidebarLinks collapsed={collapsed} onToggleCollapse={onToggle} />
+      <SidebarLinks collapsed={collapsed} />
 
       {/* Bottom Mini Toggle */}
       <div className="mt-auto pt-2 border-t border-white/10">

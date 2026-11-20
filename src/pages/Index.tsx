@@ -97,7 +97,7 @@ export default function Index() {
       ) : (
         <div className="space-y-6">
           {/* ── TOP STAT CARDS (4 CARDS WITH ACTUAL DATA ONLY) ── */}
-          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="dashboard-counts grid grid-cols-2 gap-3 md:gap-5 xl:grid-cols-4">
             <StatCard
               title="Menus"
               value={menusCount}
