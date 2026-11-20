@@ -42,12 +42,12 @@ import type { MenuCatalogItem, MenuItemIngredient } from '@/types';
 import { averageMenuMargin } from '@/lib/utils';
 
 const categoryColors: Record<string, string> = {
-  Starters: 'bg-rose-50 text-[#e11d48] border-rose-200',
+  Starters: 'bg-red-50 text-[#dc2626] border-red-200',
   Gravy: 'bg-amber-50 text-amber-700 border-amber-200',
   Snacks: 'bg-slate-100 text-slate-700 border-slate-200',
   Noodles: 'bg-sky-50 text-sky-700 border-sky-200',
   Shawarma: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-  Main: 'bg-rose-50 text-[#e11d48] border-rose-200',
+  Main: 'bg-red-50 text-[#dc2626] border-red-200',
   BBQ: 'bg-red-50 text-red-700 border-red-200',
   Rice: 'bg-orange-50 text-orange-700 border-orange-200',
   Dessert: 'bg-purple-50 text-purple-700 border-purple-200',
@@ -87,20 +87,20 @@ function DishCardImage({
     return (
       <div
         className={cn(
-          'h-full w-full flex flex-col items-center justify-center bg-gradient-to-br from-rose-50/70 via-slate-50 to-rose-100/40 text-slate-400 select-none border border-dashed border-rose-200/50',
+          'h-full w-full flex flex-col items-center justify-center bg-gradient-to-br from-red-50/70 via-slate-50 to-red-100/40 text-slate-400 select-none border border-dashed border-red-200/50',
           aspectRatio === 'square' ? 'p-2 text-center' : 'p-4',
           className
         )}
       >
         <div
           className={cn(
-            'rounded-xl bg-white/95 shadow-xs flex items-center justify-center border border-rose-100/80',
+            'rounded-xl bg-white/95 shadow-xs flex items-center justify-center border border-red-100/80',
             aspectRatio === 'square' ? 'size-9 mb-1' : 'size-12 mb-2'
           )}
         >
           <UtensilsCrossed
             className={cn(
-              'text-[#e11d48]/60',
+              'text-[#dc2626]/60',
               aspectRatio === 'square' ? 'size-4.5' : 'size-6'
             )}
           />
@@ -244,7 +244,7 @@ export default function MenuPage() {
     return (
       <DashboardLayout title="Menu & Costing" subtitle="Manage your dishes and pricing">
         <div className="flex items-center justify-center h-64">
-          <Loader2 className="w-8 h-8 animate-spin text-[#e11d48]" />
+          <Loader2 className="w-8 h-8 animate-spin text-[#dc2626]" />
         </div>
       </DashboardLayout>
     );
@@ -256,7 +256,7 @@ export default function MenuPage() {
       <DashboardLayout title="Menu & Costing" subtitle="Manage your dishes and pricing">
         <div className="p-8 text-red-500 text-center">
           Failed to load menu items. Make sure the backend server is running.
-          <Button onClick={() => refetch()} className="mt-4 bg-[#e11d48] text-white">
+          <Button onClick={() => refetch()} className="mt-4 bg-[#dc2626] text-white">
             Try Again
           </Button>
         </div>
@@ -338,7 +338,7 @@ export default function MenuPage() {
             </div>
 
             <Button
-              className="bg-[#e11d48] hover:bg-[#be123c] text-white shrink-0 shadow-xs max-sm:px-2.5"
+              className="bg-[#dc2626] hover:bg-[#b91c1c] text-white shrink-0 shadow-xs max-sm:px-2.5"
               onClick={() => openDishForm()}
             >
               <Plus className="size-4 sm:mr-1.5" />
@@ -455,7 +455,7 @@ export default function MenuPage() {
               Cancel
             </Button>
             <Button
-              className="bg-[#e11d48] hover:bg-[#be123c] text-white"
+              className="bg-[#dc2626] hover:bg-[#b91c1c] text-white"
               form="dish-form"
               type="submit"
               disabled={isMockMode() || isSaving}
@@ -483,7 +483,7 @@ export default function MenuPage() {
           {filteredItems.map((item) => (
             <div
               key={item.id}
-              className="card-premium p-3.5 sm:p-4 group hover:border-[#e11d48]/30 transition-all duration-300 flex flex-col justify-between"
+              className="card-premium p-3.5 sm:p-4 group hover:border-[#dc2626]/30 transition-all duration-300 flex flex-col justify-between"
             >
               <div>
                 {/* Dish Image Banner - increased height for mobile and desktop */}
@@ -492,7 +492,7 @@ export default function MenuPage() {
                   <div className="absolute top-2.5 left-2.5 flex flex-col gap-1 items-start">
                     {item.ingredients && item.ingredients.length > 0 ? (
                       item.is_in_stock === false || item.servings_available === 0 ? (
-                        <Badge className="bg-rose-600/90 text-white font-bold text-[10px] backdrop-blur-md border-0 shadow-sm">
+                        <Badge className="bg-red-600/90 text-white font-bold text-[10px] backdrop-blur-md border-0 shadow-sm">
                           Out of stock (0)
                         </Badge>
                       ) : (
@@ -519,11 +519,11 @@ export default function MenuPage() {
                       aria-label={'Delete ' + item.name}
                       variant="ghost"
                       size="icon"
-                      className="size-7 rounded-md hover:bg-rose-50"
+                      className="size-7 rounded-md hover:bg-red-50"
                       onClick={() => handleDeleteDish(item.id)}
                       disabled={isMockMode()}
                     >
-                      <Trash2 className="size-3.5 text-rose-500" />
+                      <Trash2 className="size-3.5 text-red-500" />
                     </Button>
                   </div>
                 </div>
@@ -536,14 +536,14 @@ export default function MenuPage() {
                     </Badge>
                     {item.ingredients && item.ingredients.length > 0 ? (
                       <span className="text-[11px] text-slate-500 flex items-center gap-1 font-medium">
-                        <Layers className="size-3 text-[#e11d48]" />
+                        <Layers className="size-3 text-[#dc2626]" />
                         {item.ingredients.length} ingredients
                       </span>
                     ) : (
                       <span className="text-[11px] text-slate-400 italic">No recipe</span>
                     )}
                   </div>
-                  <h3 className="font-display text-base sm:text-lg font-bold text-slate-900 group-hover:text-[#e11d48] transition-colors truncate">
+                  <h3 className="font-display text-base sm:text-lg font-bold text-slate-900 group-hover:text-[#dc2626] transition-colors truncate">
                     {item.name}
                   </h3>
                 </div>
@@ -557,7 +557,7 @@ export default function MenuPage() {
                 </div>
                 <div>
                   <p className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">Price</p>
-                  <p className="font-bold text-xs text-[#e11d48] tabular-nums">{formatPrice(item.selling_price)}</p>
+                  <p className="font-bold text-xs text-[#dc2626] tabular-nums">{formatPrice(item.selling_price)}</p>
                 </div>
                 <div>
                   <p className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">Margin</p>
@@ -584,7 +584,7 @@ export default function MenuPage() {
           {filteredItems.map((item) => (
             <div
               key={item.id}
-              className="card-premium p-4 sm:p-5 rounded-2xl flex flex-col lg:flex-row lg:items-center justify-between gap-5 hover:border-[#e11d48]/40 hover:shadow-md transition-all duration-200 group"
+              className="card-premium p-4 sm:p-5 rounded-2xl flex flex-col lg:flex-row lg:items-center justify-between gap-5 hover:border-[#dc2626]/40 hover:shadow-md transition-all duration-200 group"
             >
               {/* Left: Large Food Image + Big Dish Typography */}
               <div className="flex items-center gap-4 sm:gap-6 min-w-0 flex-1">
@@ -601,12 +601,12 @@ export default function MenuPage() {
                 {/* Dish Info */}
                 <div className="min-w-0 flex-1 space-y-1.5">
                   <div className="flex items-center gap-2.5 flex-wrap">
-                    <h3 className="font-display text-xl sm:text-2xl font-bold text-slate-900 group-hover:text-[#e11d48] transition-colors wrap-anywhere">
+                    <h3 className="font-display text-xl sm:text-2xl font-bold text-slate-900 group-hover:text-[#dc2626] transition-colors wrap-anywhere">
                       {item.name}
                     </h3>
                     {item.ingredients && item.ingredients.length > 0 ? (
                       item.is_in_stock === false || item.servings_available === 0 ? (
-                        <Badge variant="outline" className="text-xs font-bold px-2.5 py-0.5 rounded-lg border-rose-200 bg-rose-50 text-rose-700">
+                        <Badge variant="outline" className="text-xs font-bold px-2.5 py-0.5 rounded-lg border-red-200 bg-red-50 text-red-700">
                           Out of Stock (0 servings)
                         </Badge>
                       ) : (
@@ -626,7 +626,7 @@ export default function MenuPage() {
                     )}
                     {item.ingredients && item.ingredients.length > 0 && (
                       <span className="text-xs text-slate-500 font-medium flex items-center gap-1 bg-slate-50 px-2 py-0.5 rounded-md border border-slate-200/60">
-                        <Layers className="size-3 text-[#e11d48]" />
+                        <Layers className="size-3 text-[#dc2626]" />
                         {item.ingredients.length} ingredient{item.ingredients.length > 1 ? 's' : ''}
                       </span>
                     )}
@@ -649,7 +649,7 @@ export default function MenuPage() {
                   <span className="text-[11px] sm:text-xs text-slate-400 font-semibold block uppercase tracking-wider">
                     Price
                   </span>
-                  <span className="font-extrabold text-xl sm:text-2xl text-[#e11d48]">
+                  <span className="font-extrabold text-xl sm:text-2xl text-[#dc2626]">
                     {formatPrice(item.selling_price)}
                   </span>
                 </div>
@@ -688,7 +688,7 @@ export default function MenuPage() {
                   <Button
                     variant="outline"
                     size="icon"
-                    className="size-10 rounded-xl border-rose-200 text-rose-500 hover:text-rose-700 hover:bg-rose-50 shadow-xs"
+                    className="size-10 rounded-xl border-red-200 text-red-500 hover:text-red-700 hover:bg-red-50 shadow-xs"
                     aria-label={'Delete ' + item.name}
                     onClick={() => handleDeleteDish(item.id)}
                     disabled={isMockMode()}
@@ -711,7 +711,7 @@ export default function MenuPage() {
           </p>
           {menuItems.length === 0 && (
             <Button
-              className="bg-[#e11d48] hover:bg-[#be123c] text-white"
+              className="bg-[#dc2626] hover:bg-[#b91c1c] text-white"
               onClick={() => openDishForm()}
             >
               <Plus className="w-4 h-4 mr-2" />

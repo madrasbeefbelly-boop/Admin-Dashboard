@@ -256,7 +256,7 @@ export default function InventoryPage() {
           />
         </div>
         <Button
-          className="bg-[#e11d48] hover:bg-[#be123c] text-white shrink-0 shadow-xs"
+          className="bg-[#dc2626] hover:bg-[#b91c1c] text-white shrink-0 shadow-xs"
           onClick={() => setIsAddDialogOpen(true)}
         >
           <Plus className="size-4 mr-1.5" />
@@ -385,7 +385,7 @@ export default function InventoryPage() {
               Cancel
             </Button>
             <Button
-              className="bg-[#e11d48] hover:bg-[#be123c] text-white"
+              className="bg-[#dc2626] hover:bg-[#b91c1c] text-white"
               onClick={handleAddItem}
               disabled={isMockMode() || createItem.isPending}
             >
@@ -413,7 +413,7 @@ export default function InventoryPage() {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <ArrowUpDown className="size-5 text-[#e11d48]" />
+              <ArrowUpDown className="size-5 text-[#dc2626]" />
               Adjust Stock: {adjustModal.item?.name}
             </DialogTitle>
             <DialogDescription>
@@ -463,7 +463,7 @@ export default function InventoryPage() {
               Cancel
             </Button>
             <Button
-              className="bg-[#e11d48] hover:bg-[#be123c] text-white"
+              className="bg-[#dc2626] hover:bg-[#b91c1c] text-white"
               onClick={handleApplyAdjustment}
               disabled={isMockMode() || adjustStock.isPending}
             >
@@ -546,7 +546,7 @@ export default function InventoryPage() {
                             Used in {affectedDishes.length} dish{affectedDishes.length > 1 ? 'es' : ''}
                           </span>
                           {isLowStock && (
-                            <Badge variant="outline" className="hidden text-[10px] bg-rose-50 text-rose-700 border-rose-200 md:inline-flex">
+                            <Badge variant="outline" className="hidden text-[10px] bg-red-50 text-red-700 border-red-200 md:inline-flex">
                               Low stock warning
                             </Badge>
                           )}
@@ -563,7 +563,7 @@ export default function InventoryPage() {
                           className="h-8 text-xs font-semibold border-slate-200 hover:bg-slate-100 shadow-xs max-md:h-11 max-md:flex-1"
                           onClick={() => openAdjustDialog(item)}
                         >
-                          <ArrowUpDown className="size-3.5 mr-1 text-[#e11d48]" />
+                          <ArrowUpDown className="size-3.5 mr-1 text-[#dc2626]" />
                           Adjust / Restock
                         </Button>
                         <Button
@@ -572,7 +572,7 @@ export default function InventoryPage() {
                           aria-label={`Delete inventory item ${item.name}`}
                           onClick={() => handleDeleteItem(item.id)}
                           disabled={isMockMode() || deleteItem.isPending}
-                          className="size-8 p-0 text-slate-400 hover:text-rose-600 hover:bg-rose-50 max-md:size-11 max-md:border max-md:border-input max-md:bg-background max-md:text-slate-600"
+                          className="size-8 p-0 text-slate-400 hover:text-red-600 hover:bg-red-50 max-md:size-11 max-md:border max-md:border-input max-md:bg-background max-md:text-slate-600"
                         >
                           <Trash2 className="size-4" />
                         </Button>

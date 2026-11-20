@@ -144,7 +144,7 @@ export function AnalyticsCharts({ summaryCards }: { summaryCards: ReactNode }) {
             <div className="flex items-start justify-between gap-4 mb-4">
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="w-1.5 h-5 bg-[#e11d48] rounded-full inline-block" />
+                  <span className="w-1.5 h-5 bg-[#dc2626] rounded-full inline-block" />
                   <h3 className="font-display font-bold text-lg text-slate-900 tracking-tight">
                     Revenue
                   </h3>
@@ -197,10 +197,10 @@ export function AnalyticsCharts({ summaryCards }: { summaryCards: ReactNode }) {
                     <stop offset="5%" stopColor="#c084fc" stopOpacity={0.65} />
                     <stop offset="95%" stopColor="#c084fc" stopOpacity={0.08} />
                   </linearGradient>
-                  {/* Vibrant Pink/Magenta Gradient (Income) */}
-                  <linearGradient id="pinkWaveGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#e11d48" stopOpacity={0.85} />
-                    <stop offset="95%" stopColor="#e11d48" stopOpacity={0.15} />
+                  {/* Vibrant Red Gradient (Income - Matching Madras Beef Belly Logo) */}
+                  <linearGradient id="redWaveGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#dc2626" stopOpacity={0.85} />
+                    <stop offset="95%" stopColor="#dc2626" stopOpacity={0.15} />
                   </linearGradient>
                 </defs>
 
@@ -239,7 +239,7 @@ export function AnalyticsCharts({ summaryCards }: { summaryCards: ReactNode }) {
                         <p className="font-bold text-slate-800">{label}</p>
                         <div className="flex items-center justify-between gap-3">
                           <span className="flex items-center gap-1.5 text-slate-500">
-                            <span className="size-2 rounded-full bg-[#e11d48]" /> Income
+                            <span className="size-2 rounded-full bg-[#dc2626]" /> Income
                           </span>
                           <span className="font-semibold text-slate-900 tabular-nums">
                             {currency.format(Number(payload[1]?.value ?? payload[0]?.value))}
@@ -270,10 +270,10 @@ export function AnalyticsCharts({ summaryCards }: { summaryCards: ReactNode }) {
                 <Area
                   type="monotone"
                   dataKey="income"
-                  stroke="#e11d48"
+                  stroke="#dc2626"
                   strokeWidth={2.5}
                   fillOpacity={1}
-                  fill="url(#pinkWaveGradient)"
+                  fill="url(#redWaveGradient)"
                 />
               </AreaChart>
             </ResponsiveContainer>

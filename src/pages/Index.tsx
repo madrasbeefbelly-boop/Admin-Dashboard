@@ -79,7 +79,7 @@ export default function Index() {
     <DashboardLayout title="Dashboard">
       {loading ? (
         <div className="flex h-64 items-center justify-center">
-          <Loader2 aria-label="Loading dashboard" className="size-8 animate-spin text-[#e11d48]" />
+          <Loader2 aria-label="Loading dashboard" className="size-8 animate-spin text-[#dc2626]" />
         </div>
       ) : error ? (
         <div className="card-premium p-8 text-center text-destructive">
@@ -89,7 +89,7 @@ export default function Index() {
               void stats.refetch();
               void lowStock.refetch();
             }}
-            className="mt-4 bg-[#e11d48] text-white hover:bg-[#be123c]"
+            className="mt-4 bg-[#dc2626] text-white hover:bg-[#b91c1c]"
           >
             Try again
           </Button>

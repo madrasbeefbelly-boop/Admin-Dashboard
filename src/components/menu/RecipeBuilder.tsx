@@ -181,7 +181,7 @@ export function RecipeBuilder({
       <div className="flex items-center justify-between">
         <div>
           <h4 className="font-semibold text-sm text-slate-900 flex items-center gap-1.5">
-            <Sparkles className="size-4 text-[#e11d48]" />
+            <Sparkles className="size-4 text-[#dc2626]" />
             Recipe &amp; Ingredient Requirements
           </h4>
           <p className="text-xs text-slate-400 mt-0.5">
@@ -194,7 +194,7 @@ export function RecipeBuilder({
           variant="outline"
           size="sm"
           onClick={() => setIsQuickAddOpen(true)}
-          className="text-xs border-dashed text-[#e11d48] border-rose-200 hover:bg-rose-50"
+          className="text-xs border-dashed text-[#dc2626] border-red-200 hover:bg-red-50"
         >
           <PackagePlus className="size-3.5 mr-1" />
           + New Ingredient
@@ -278,7 +278,7 @@ export function RecipeBuilder({
               type="button"
               onClick={handleAddIngredient}
               disabled={!selectedInvId || !quantity}
-              className="w-full bg-[#e11d48] hover:bg-[#be123c] text-white text-xs h-9 font-semibold"
+              className="w-full bg-[#dc2626] hover:bg-[#b91c1c] text-white text-xs h-9 font-semibold"
             >
               <Plus className="size-3.5 mr-1" /> Add
             </Button>
@@ -371,7 +371,7 @@ export function RecipeBuilder({
                     <button
                       type="button"
                       onClick={() => handleRemoveIngredient(ing.inventory_item_id)}
-                      className="text-slate-400 hover:text-rose-600 p-1 rounded-md transition-colors"
+                      className="text-slate-400 hover:text-red-600 p-1 rounded-md transition-colors"
                       title="Remove ingredient"
                       aria-label={`Remove ${ing.ingredient_name}`}
                     >
@@ -384,11 +384,11 @@ export function RecipeBuilder({
           </div>
 
           {/* Recipe Cost Calculation Bar */}
-          <div className="flex items-center justify-between p-3 rounded-xl bg-rose-50/70 border border-rose-200/60 text-xs">
+          <div className="flex items-center justify-between p-3 rounded-xl bg-red-50/70 border border-red-200/60 text-xs">
             <div className="flex items-center gap-2">
-              <Calculator className="size-4 text-[#e11d48]" />
+              <Calculator className="size-4 text-[#dc2626]" />
               <span className="font-medium text-slate-700">Estimated Recipe Cost:</span>
-              <span className="font-extrabold text-sm text-[#e11d48]">
+              <span className="font-extrabold text-sm text-[#dc2626]">
                 ₹{totalRecipeCost.toFixed(2)} / serving
               </span>
             </div>
@@ -399,7 +399,7 @@ export function RecipeBuilder({
                 variant="outline"
                 size="sm"
                 onClick={() => onApplyRecipeCost(totalRecipeCost)}
-                className="h-7 text-[11px] font-semibold bg-white border-rose-300 text-[#e11d48] hover:bg-rose-100"
+                className="h-7 text-[11px] font-semibold bg-white border-red-300 text-[#dc2626] hover:bg-red-100"
               >
                 Use Recipe Cost (₹{totalRecipeCost.toFixed(2)})
               </Button>
@@ -539,7 +539,7 @@ export function RecipeBuilder({
               <Button
                 type="submit"
                 size="sm"
-                className="bg-[#e11d48] text-white hover:bg-[#be123c]"
+                className="bg-[#dc2626] text-white hover:bg-[#b91c1c]"
                 disabled={createInventoryItem.isPending}
               >
                 {createInventoryItem.isPending ? 'Saving…' : 'Save Ingredient'}

@@ -111,9 +111,9 @@ export function Header({ title, subtitle }: HeaderProps) {
                 className="relative flex items-center gap-2 pl-2 pr-1 py-1 rounded-full hover:bg-slate-100 transition-colors cursor-pointer max-md:min-h-11"
                 aria-label={unreadCount > 0 ? `User account, ${unreadCount} unread notifications` : 'User account'}
               >
-                <div className="size-8 rounded-full bg-rose-100 border border-rose-200 text-[#e11d48] font-bold flex items-center justify-center text-xs shadow-xs overflow-hidden">
+                <div className="size-8 rounded-full bg-red-100 border border-red-200 text-[#dc2626] font-bold flex items-center justify-center text-xs shadow-xs overflow-hidden">
                   {profileLoading ? (
-                    <Loader2 className="size-4 animate-spin text-[#e11d48]" />
+                    <Loader2 className="size-4 animate-spin text-[#dc2626]" />
                   ) : (
                     <span>{initials}</span>
                   )}
@@ -130,7 +130,7 @@ export function Header({ title, subtitle }: HeaderProps) {
               <div className="px-4 py-3 border-b border-border">
                 <p className="font-semibold text-sm text-foreground">{displayName}</p>
                 <p className="text-xs text-muted-foreground mt-0.5 truncate">{user?.email}</p>
-                <p className="text-[11px] text-[#e11d48] font-bold mt-1 capitalize">
+                <p className="text-[11px] text-[#dc2626] font-bold mt-1 capitalize">
                   {user?.role || 'Manager'}
                 </p>
               </div>

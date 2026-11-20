@@ -140,13 +140,13 @@ export default function ProfitPage() {
                     <div key={label}>
                       <dt className="text-sm text-muted-foreground">{label}</dt>
                       <dd className="mt-1 break-words font-semibold">{dish?.name ?? 'Cost unavailable'}</dd>
-                      {dish && <dd className={cn('mt-0.5 text-sm tabular-nums', dish.profit < 0 && 'text-rose-700')}>{currency.format(dish.profit)}</dd>}
+                      {dish && <dd className={cn('mt-0.5 text-sm tabular-nums', dish.profit < 0 && 'text-red-600')}>{currency.format(dish.profit)}</dd>}
                     </div>
                   ))}
                   <div>
                     <dt className="text-sm text-muted-foreground">Dishes sold at a loss</dt>
                     <dd className="mt-1 font-semibold">{losses.length}</dd>
-                    <dd className={cn('mt-0.5 text-sm tabular-nums', losses.length > 0 && 'text-rose-700')}>
+                    <dd className={cn('mt-0.5 text-sm tabular-nums', losses.length > 0 && 'text-red-600')}>
                       {currency.format(totalLoss)} in combined losses
                     </dd>
                   </div>
@@ -183,7 +183,7 @@ export default function ProfitPage() {
                           <TableCell role="cell" mobileLabel="Servings sold" className="text-right tabular-nums">{dish.servings}</TableCell>
                           <TableCell role="cell" mobileLabel="Revenue" className="text-right tabular-nums">{currency.format(dish.revenue)}</TableCell>
                           <TableCell role="cell" mobileLabel="Ingredient cost" className="text-right tabular-nums">{dish.profit == null ? 'Incomplete' : currency.format(dish.ingredientCost)}</TableCell>
-                          <TableCell role="cell" mobileLabel="Profit / loss" className={cn('text-right font-semibold tabular-nums', dish.profit < 0 && 'text-rose-700')}>
+                          <TableCell role="cell" mobileLabel="Profit / loss" className={cn('text-right font-semibold tabular-nums', dish.profit < 0 && 'text-red-600')}>
                             {dish.profit == null ? 'Unavailable' : currency.format(dish.profit)}
                           </TableCell>
                           <TableCell role="cell" mobileLabel="Profit / serving" className="text-right tabular-nums">

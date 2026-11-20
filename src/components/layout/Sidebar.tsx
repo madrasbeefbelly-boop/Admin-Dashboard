@@ -61,7 +61,7 @@ function SidebarLinks({
                   collapsed && 'justify-center px-0',
                   isActive
                     ? collapsed
-                      ? 'bg-white text-[#e11d48] font-bold rounded-xl'
+                      ? 'bg-white text-[#dc2626] font-bold rounded-xl'
                       : 'koki-cutout-tab'
                     : 'text-white/85 hover:text-white hover:bg-white/15'
                 )}
@@ -69,7 +69,7 @@ function SidebarLinks({
                 <Icon
                   className={cn(
                     'size-5 shrink-0 transition-transform group-hover:scale-105',
-                    isActive ? 'text-[#e11d48]' : 'text-white'
+                    isActive ? 'text-[#dc2626]' : 'text-white'
                   )}
                   aria-hidden="true"
                 />
@@ -81,7 +81,7 @@ function SidebarLinks({
                         className={cn(
                           'text-xs font-bold px-2 py-0.5 rounded-full tabular-nums',
                           isActive
-                            ? 'bg-rose-100 text-[#e11d48]'
+                            ? 'bg-red-100 text-[#dc2626]'
                             : 'bg-white/20 text-white'
                         )}
                       >
@@ -92,7 +92,7 @@ function SidebarLinks({
                       <ChevronRight
                         className={cn(
                           'size-4 opacity-70',
-                          isActive ? 'text-[#e11d48]' : 'text-white'
+                          isActive ? 'text-[#dc2626]' : 'text-white'
                         )}
                       />
                     )}
@@ -106,10 +106,10 @@ function SidebarLinks({
 
       {!collapsed && (
         <div className="pt-4 pb-2">
-          <div className="bg-[#9f1239]/60 border border-white/15 rounded-2xl p-4 shadow-inner">
+          <div className="bg-[#991b1b]/60 border border-white/15 rounded-2xl p-4 shadow-inner">
             <Link
               to={'/orders#' + newOrderTarget}
-              className="w-full py-2.5 px-3 rounded-xl bg-white text-[#e11d48] hover:bg-white/95 font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm transition-all"
+              className="w-full py-2.5 px-3 rounded-xl bg-white text-[#dc2626] hover:bg-white/95 font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm transition-all"
             >
               <Plus className="size-4 stroke-[2.5]" aria-hidden="true" />
               Add Order
@@ -125,7 +125,7 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
   return (
     <aside
       className={cn(
-        'sticky top-0 hidden h-dvh flex-col bg-[#e11d48] px-3 py-5 text-white transition-all duration-300 md:flex z-30',
+        'sticky top-0 hidden h-dvh flex-col bg-[#dc2626] px-3 py-5 text-white transition-all duration-300 md:flex z-30',
         collapsed ? 'w-[4.75rem]' : 'w-[16rem]'
       )}
     >

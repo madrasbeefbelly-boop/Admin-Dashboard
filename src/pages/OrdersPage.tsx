@@ -270,8 +270,8 @@ export default function OrdersPage() {
                               onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
                             />
                           ) : (
-                            <span className="size-7 rounded bg-rose-50 border border-rose-100 flex items-center justify-center shrink-0">
-                              <UtensilsCrossed className="size-3.5 text-rose-400" />
+                            <span className="size-7 rounded bg-red-50 border border-red-100 flex items-center justify-center shrink-0">
+                              <UtensilsCrossed className="size-3.5 text-red-400" />
                             </span>
                           )}
                           <span className="min-w-0 max-md:flex-1 max-md:whitespace-normal max-md:wrap-anywhere md:truncate">{item.name}</span>
@@ -327,8 +327,8 @@ export default function OrdersPage() {
                             onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
                           />
                         ) : (
-                          <div className="size-11 rounded-lg bg-rose-50 border border-rose-100 flex items-center justify-center shrink-0">
-                            <UtensilsCrossed className="size-5 text-rose-400" />
+                          <div className="size-11 rounded-lg bg-red-50 border border-red-100 flex items-center justify-center shrink-0">
+                            <UtensilsCrossed className="size-5 text-red-400" />
                           </div>
                         );
                       })()}
@@ -415,7 +415,7 @@ export default function OrdersPage() {
           {/* Section Header */}
           <div className="flex items-center justify-between pb-1">
             <div className="flex items-center gap-2">
-              <History className="size-5 text-[#e11d48]" />
+              <History className="size-5 text-[#dc2626]" />
               <h2 className="font-display font-bold text-lg text-slate-900">Order History</h2>
             </div>
             {orders.length > 0 && (
@@ -427,7 +427,7 @@ export default function OrdersPage() {
 
           {ordersLoading ? (
             <div className="card-premium py-16 text-center text-muted-foreground flex items-center justify-center gap-2">
-              <Loader2 className="size-4 animate-spin text-[#e11d48]" /> Loading order history…
+              <Loader2 className="size-4 animate-spin text-[#dc2626]" /> Loading order history…
             </div>
           ) : orders.length === 0 ? (
             <div className="card-premium py-16 text-center">
@@ -442,7 +442,7 @@ export default function OrdersPage() {
               {orders.map((order) => (
                 <div
                   key={order.id}
-                  className="card-premium p-4 sm:p-5 rounded-2xl shadow-xs hover:border-[#e11d48]/40 hover:shadow-md transition-all space-y-3"
+                  className="card-premium p-4 sm:p-5 rounded-2xl shadow-xs hover:border-[#dc2626]/40 hover:shadow-md transition-all space-y-3"
                 >
                   {/* Order Header: Ref & Status on Left | Price & Delete Button on Right */}
                   <div className="flex items-start justify-between gap-3">
@@ -465,7 +465,7 @@ export default function OrdersPage() {
                       )}
 
                       {(order.status === 'Canceled' || order.status === 'Cancelled') && (
-                        <Badge variant="outline" className="text-[11px] font-semibold text-rose-700 border-rose-300 bg-rose-50">
+                        <Badge variant="outline" className="text-[11px] font-semibold text-red-700 border-red-300 bg-red-50">
                           <XCircle className="size-2.5 mr-1" />
                           Canceled
                         </Badge>
@@ -485,7 +485,7 @@ export default function OrdersPage() {
                       </span>
                       <button
                         type="button"
-                        className="size-7.5 rounded-lg flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 active:bg-rose-100 transition-colors shrink-0"
+                        className="size-7.5 rounded-lg flex items-center justify-center text-slate-400 hover:text-red-600 hover:bg-red-50 active:bg-red-100 transition-colors shrink-0"
                         onClick={() => handleDeleteOrder(order.id)}
                         disabled={mockMode}
                         aria-label="Delete order"
@@ -518,7 +518,7 @@ export default function OrdersPage() {
 
                   {/* Order Items Breakdown */}
                   {Array.isArray(order.items) && order.items.length > 0 ? (
-                    <ul className="space-y-1.5 text-xs border-l-2 border-rose-200/60 pl-2.5">
+                    <ul className="space-y-1.5 text-xs border-l-2 border-red-200/60 pl-2.5">
                       {order.items.map((i: any, idx: number) => (
                         <li key={idx} className="flex items-center justify-between gap-3 text-muted-foreground">
                           <span className="flex items-center gap-2 min-w-0">
@@ -533,8 +533,8 @@ export default function OrdersPage() {
                                   onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
                                 />
                               ) : (
-                                <div className="size-6 rounded bg-rose-50 border border-rose-100 flex items-center justify-center shrink-0">
-                                  <UtensilsCrossed className="size-3 text-rose-400" />
+                                <div className="size-6 rounded bg-red-50 border border-red-100 flex items-center justify-center shrink-0">
+                                  <UtensilsCrossed className="size-3 text-red-400" />
                                 </div>
                               );
                             })()}
@@ -574,7 +574,7 @@ export default function OrdersPage() {
                         <Button
                           size="sm"
                           variant="outline"
-                          className="h-8 px-3 border-rose-200 text-rose-600 hover:text-rose-700 hover:bg-rose-50 text-xs font-semibold shadow-xs"
+                          className="h-8 px-3 border-red-200 text-red-600 hover:text-red-700 hover:bg-red-50 text-xs font-semibold shadow-xs"
                           disabled={mockMode || updatingOrderId === order.id}
                           onClick={() => handleStatusChange(order, 'Canceled')}
                         >
@@ -585,7 +585,7 @@ export default function OrdersPage() {
                     ) : (
                       <span className="text-[11px] font-medium flex items-center gap-1.5">
                         {order.status === 'Canceled' || order.status === 'Cancelled' ? (
-                          <span className="text-rose-600 font-semibold">
+                          <span className="text-red-600 font-semibold">
                             {order.cancellation_reason ? `Canceled: ${order.cancellation_reason}` : 'Order was canceled'}
                           </span>
                         ) : (
@@ -610,7 +610,7 @@ export default function OrdersPage() {
       >
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-rose-600 font-bold">
+            <DialogTitle className="flex items-center gap-2 text-red-600 font-bold">
               <AlertTriangle className="size-5 shrink-0" />
               Insufficient Stock
             </DialogTitle>
@@ -620,7 +620,7 @@ export default function OrdersPage() {
           </DialogHeader>
 
           <div className="space-y-3 py-2">
-            <div className="rounded-lg border border-rose-200 bg-rose-50/70 p-3 text-xs text-rose-800 leading-relaxed">
+            <div className="rounded-lg border border-red-200 bg-red-50/70 p-3 text-xs text-red-800 leading-relaxed">
               Serving this order was blocked to prevent negative inventory. Please restock these ingredients:
             </div>
 
@@ -635,7 +635,7 @@ export default function OrdersPage() {
                   </div>
                   <div className="text-right shrink-0">
                     <p className="text-xs text-slate-500">Need: <span className="font-semibold">{s.required} {s.unit}</span></p>
-                    <span className="inline-block mt-1 text-[11px] font-bold px-2 py-0.5 rounded bg-rose-50 border border-rose-200 text-rose-700">
+                    <span className="inline-block mt-1 text-[11px] font-bold px-2 py-0.5 rounded bg-red-50 border border-red-200 text-red-700">
                       Short: {s.shortage} {s.unit}
                     </span>
                   </div>
@@ -651,7 +651,7 @@ export default function OrdersPage() {
               </Link>
             </Button>
             <Button
-              className="bg-[#e11d48] hover:bg-[#be123c] text-white"
+              className="bg-[#dc2626] hover:bg-[#b91c1c] text-white"
               onClick={() => setShortageInfo({ open: false, shortages: [] })}
             >
               Understood
