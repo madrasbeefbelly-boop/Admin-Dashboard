@@ -243,10 +243,13 @@ export default function OrdersPage() {
             className="card-premium scroll-mt-28 p-5 space-y-3">
             <p className="text-sm font-medium text-muted-foreground">Select item</p>
             <Select value={selectedId} onValueChange={setSelectedId}>
-              <SelectTrigger className="w-full" aria-label="Select a menu item">
+              <SelectTrigger
+                className="w-full [&>svg]:shrink-0 max-md:h-auto max-md:min-h-10 max-md:gap-2 max-md:[&>span]:min-w-0 max-md:[&>span]:flex-1 max-md:[&>span]:line-clamp-none"
+                aria-label="Select a menu item"
+              >
                 <SelectValue placeholder="— Choose a dish —" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="max-md:w-[var(--radix-select-trigger-width)] max-md:min-w-0 max-md:max-w-[var(--radix-select-content-available-width)]">
                 {availableItems.length === 0 ? (
                   <SelectItem value="__none" disabled>
                     No menu items — add dishes in Menu &amp; Costing
@@ -255,8 +258,8 @@ export default function OrdersPage() {
                   availableItems.map((item) => {
                     const price = formatPrice(item.selling_price);
                     return (
-                      <SelectItem key={item.id} value={item.id}>
-                        <span className="flex items-center gap-2.5 w-full">
+                      <SelectItem key={item.id} value={item.id} className="max-md:[&>span:last-child]:min-w-0 max-md:[&>span:last-child]:flex-1">
+                        <span className="flex w-full min-w-0 items-center gap-2.5">
                           {item.image_url && item.image_url !== '/placeholder.svg' ? (
                             <img
                               src={item.image_url}
@@ -265,12 +268,12 @@ export default function OrdersPage() {
                               onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
                             />
                           ) : (
-                            <div className="size-7 rounded bg-rose-50 border border-rose-100 flex items-center justify-center shrink-0">
+                            <span className="size-7 rounded bg-rose-50 border border-rose-100 flex items-center justify-center shrink-0">
                               <UtensilsCrossed className="size-3.5 text-rose-400" />
-                            </div>
+                            </span>
                           )}
-                          <span className="truncate">{item.name}</span>
-                          <span className="text-muted-foreground tabular-nums ml-auto shrink-0 pl-2">
+                          <span className="min-w-0 max-md:flex-1 max-md:whitespace-normal max-md:wrap-anywhere md:truncate">{item.name}</span>
+                          <span className="ml-auto shrink-0 whitespace-nowrap pl-2 text-muted-foreground tabular-nums">
                             {price != null ? `₹${price.toFixed(0)}` : '—'}
                           </span>
                         </span>
