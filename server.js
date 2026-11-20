@@ -1360,40 +1360,6 @@ app.post('/api/orders', async (req, res) => {
       return res.status(400).json({ success: false, error: 'No business found' });
     }
 
-    // Auto-create orders + order_items tables if they don't exist yet
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS orders (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        business_id UUID NOT NULL,
-        order_ref VARCHAR(50) UNIQUE,
-        order_number VARCHAR(50),
-        customer_name VARCHAR(255),
-        client_name VARCHAR(255),
-        table_no VARCHAR(50),
-        payment_method VARCHAR(50) DEFAULT 'Cash',
-        total_amount DECIMAL(12, 2) NOT NULL DEFAULT 0,
-        total_value DECIMAL(12, 2) DEFAULT 0,
-        status VARCHAR(50) DEFAULT 'Completed',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS order_items (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        order_id UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
-        menu_item_id UUID,
-        name VARCHAR(255),
-        item_name VARCHAR(255),
-        category VARCHAR(100),
-        unit_price DECIMAL(10, 2) NOT NULL,
-        quantity INT NOT NULL,
-        line_total DECIMAL(12, 2) NOT NULL,
-        total_price DECIMAL(12, 2),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
     const orderRef = `ORD-${Date.now()}-${Math.random().toString(36).substr(2, 5).toUpperCase()}`;
     const itemsArray = items || [];
     const computedTotal = total_amount ?? itemsArray.reduce((s, i) => s + (Number(i.unit_price) || 0) * (Number(i.quantity) || 1), 0);
