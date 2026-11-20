@@ -1,15 +1,15 @@
-@import '@fontsource/inter/400.css';
-@import '@fontsource/inter/500.css';
-@import '@fontsource/inter/600.css';
-@import '@fontsource/inter/700.css';
+@import "@fontsource/inter/400.css";
+@import "@fontsource/inter/500.css";
+@import "@fontsource/inter/600.css";
+@import "@fontsource/inter/700.css";
 
-@import 'tailwindcss';
+@import "tailwindcss";
 
 @theme {
   /* Font Families - Tailwind v4 format */
-  --font-family-sans: 'Inter', system-ui, -apple-system, sans-serif;
-    --default-font-family: var(--font-family-sans);
-  
+  --font-family-sans: "Inter", system-ui, -apple-system, sans-serif;
+  --default-font-family: var(--font-family-sans);
+
   /* Custom font utilities */
   --font-display: var(--font-family-sans);
   --font-body: var(--font-family-sans);
@@ -17,41 +17,41 @@
   /* Colors - Light Mode */
   --color-background: #fafafb;
   --color-foreground: #0f172a;
-  
+
   --color-card: #ffffff;
   --color-card-foreground: #0f172a;
-  
+
   --color-popover: #ffffff;
   --color-popover-foreground: #0f172a;
-  
+
   --color-primary: #e11d48;
   --color-primary-foreground: #ffffff;
-  
+
   --color-secondary: #f1f5f9;
   --color-secondary-foreground: #1e293b;
-  
+
   --color-muted: #f8fafc;
   --color-muted-foreground: #64748b;
-  
+
   --color-accent: #ffe4e6;
   --color-accent-foreground: #e11d48;
-  
+
   --color-gold: #e11d48;
   --color-gold-light: #f43f5e;
   --color-gold-muted: #ffe4e6;
-  
+
   --color-success: #10b981;
   --color-success-foreground: #ffffff;
-  
+
   --color-warning: #f59e0b;
   --color-warning-foreground: #ffffff;
-  
+
   --color-info: #0284c7;
   --color-info-foreground: #ffffff;
-  
+
   --color-destructive: #ef4444;
   --color-destructive-foreground: #ffffff;
-  
+
   --color-border: #f1f5f9;
   --color-input: #e2e8f0;
   --color-ring: #e11d48;
@@ -79,15 +79,23 @@
   /* Animations */
   --animate-accordion-down: accordion-down 0.2s ease-out;
   --animate-accordion-up: accordion-up 0.2s ease-out;
-  
+
   @keyframes accordion-down {
-    from { height: 0; }
-    to { height: var(--radix-accordion-content-height); }
+    from {
+      height: 0;
+    }
+    to {
+      height: var(--radix-accordion-content-height);
+    }
   }
-  
+
   @keyframes accordion-up {
-    from { height: var(--radix-accordion-content-height); }
-    to { height: 0; }
+    from {
+      height: var(--radix-accordion-content-height);
+    }
+    to {
+      height: 0;
+    }
   }
 }
 
@@ -143,7 +151,12 @@
     -moz-osx-font-smoothing: grayscale;
   }
 
-  h1, h2, h3, h4, h5, h6 {
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
     font-family: var(--font-display);
   }
 }
@@ -152,12 +165,11 @@
   .font-display {
     font-family: var(--font-display);
   }
-  
+
   .font-body {
     font-family: var(--font-body);
   }
 }
-
 
 @layer components {
   .brand-mark {
@@ -172,9 +184,10 @@
   }
 
   .brand-mark::before {
-    content: '';
+    content: "";
     height: 58%;
-    background: url('/brand/madras-beef-belly-menu.jpeg') 50% 0 / 330% auto no-repeat;
+    background: url("/brand/madras-beef-belly-menu.png") 50% 0 / 330% auto
+      no-repeat;
   }
 
   .auth-layout {
@@ -224,7 +237,8 @@
     letter-spacing: -0.045em;
   }
 
-  .auth-brand p, .auth-description {
+  .auth-brand p,
+  .auth-description {
     color: var(--color-muted-foreground);
     font-size: 0.875rem;
   }
@@ -273,7 +287,8 @@
     border-bottom: 1px solid #403331;
   }
 
-  .sidebar-brand strong, .sidebar-brand small {
+  .sidebar-brand strong,
+  .sidebar-brand small {
     display: block;
   }
 
@@ -318,7 +333,8 @@
     color: #ffffff;
   }
 
-  .sidebar-link-active, .sidebar-link-active:hover {
+  .sidebar-link-active,
+  .sidebar-link-active:hover {
     background: #ffffff;
     color: #e11d48;
     font-weight: 600;
@@ -340,7 +356,7 @@
   }
 
   .koki-cutout-tab::before {
-    content: '';
+    content: "";
     position: absolute;
     top: -16px;
     right: 0;
@@ -353,7 +369,7 @@
   }
 
   .koki-cutout-tab::after {
-    content: '';
+    content: "";
     position: absolute;
     bottom: -16px;
     right: 0;
@@ -365,16 +381,21 @@
     pointer-events: none;
   }
 
-  .card-premium, .stat-card {
+  .card-premium,
+  .stat-card {
     border: 1px solid #f1f5f9;
     border-radius: 1rem;
     background: #ffffff;
-    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.03), 0 1px 2px -1px rgba(0, 0, 0, 0.03);
+    box-shadow:
+      0 1px 3px 0 rgba(0, 0, 0, 0.03),
+      0 1px 2px -1px rgba(0, 0, 0, 0.03);
   }
 
   .stat-card {
     padding: 1.25rem 1.25rem 0.75rem 1.25rem;
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    transition:
+      transform 0.2s ease,
+      box-shadow 0.2s ease;
   }
 
   .stat-card:hover {
@@ -397,7 +418,6 @@
       border-right: 0;
       border-top: 1px solid #4c2420;
     }
-
   }
 }
 
@@ -449,11 +469,11 @@
     max-width: 100%;
   }
 
-  .mobile-records .mobile-record-value button[role='combobox'] {
+  .mobile-records .mobile-record-value button[role="combobox"] {
     width: 100%;
   }
 
-  .mobile-records .mobile-record-value button:not([role='combobox']) {
+  .mobile-records .mobile-record-value button:not([role="combobox"]) {
     min-width: 2.75rem;
   }
 }

@@ -44,7 +44,7 @@ function SidebarLinks({
   const location = useLocation();
   const { data: profile } = useProfile();
   const { data: orders = [] } = useOrders();
-  const orderCount = orders.length > 0 ? orders.length : 65;
+  const orderCount = orders.length;
 
   return (
     <div className="flex h-full flex-col justify-between">
@@ -116,7 +116,7 @@ function SidebarLinks({
                 {!collapsed && (
                   <>
                     <span className="flex-1 font-semibold text-[13px]">{name}</span>
-                    {hasBadge && (
+                    {hasBadge && orderCount > 0 && (
                       <span
                         className={cn(
                           'text-xs font-bold px-2 py-0.5 rounded-full tabular-nums',
@@ -128,7 +128,7 @@ function SidebarLinks({
                         {orderCount}
                       </span>
                     )}
-                    {hasChevron && !hasBadge && (
+                    {hasChevron && (!hasBadge || orderCount === 0) && (
                       <ChevronRight
                         className={cn(
                           'size-4 opacity-70',

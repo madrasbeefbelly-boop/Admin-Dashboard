@@ -1,11 +1,9 @@
-import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Bell,
   MessageSquare,
   Gift,
   Settings,
-  User,
   LogOut,
   Loader2,
 } from 'lucide-react';
@@ -57,7 +55,14 @@ export function Header({ title, subtitle, hideMobileSubtitle }: HeaderProps) {
 
   const displayName = user
     ? `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.email?.split('@')[0]
-    : 'Admin';
+    : profile?.name || 'Admin';
+
+  const initials = displayName
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((s) => s[0]?.toUpperCase())
+    .join('') || 'MB';
 
   return (
     <header className="sticky top-0 z-20 bg-[#fafafb]/90 backdrop-blur-md border-b border-slate-100">
@@ -83,9 +88,9 @@ export function Header({ title, subtitle, hideMobileSubtitle }: HeaderProps) {
           </div>
         </div>
 
-        {/* Right utility icons with Koki badge counters */}
+        {/* Right utility icons with real data counters only */}
         <div className="flex shrink-0 items-center gap-2 sm:gap-3">
-          {/* 1. Bell Icon with Pink Pill Badge */}
+          {/* 1. Bell Icon with Real Unread Notification Count only */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
@@ -94,27 +99,31 @@ export function Header({ title, subtitle, hideMobileSubtitle }: HeaderProps) {
                 aria-label="Notifications"
               >
                 <Bell className="size-5" />
-                <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-[#e11d48] text-[10px] font-bold text-white rounded-full flex items-center justify-center shadow-xs">
-                  {unreadCount > 0 ? unreadCount : 12}
-                </span>
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-[#e11d48] text-[10px] font-bold text-white rounded-full flex items-center justify-center shadow-xs">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                )}
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-80 max-md:max-w-[calc(100vw-1rem)]">
               <div className="flex items-center justify-between px-4 py-2 border-b border-border">
                 <h4 className="font-semibold text-sm">Notifications</h4>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-xs text-[#e11d48] h-auto p-0 hover:bg-transparent hover:text-[#e11d48]/80"
-                  onClick={() => markAllAsRead()}
-                >
-                  Mark all as read
-                </Button>
+                {unreadCount > 0 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-xs text-[#e11d48] h-auto p-0 hover:bg-transparent hover:text-[#e11d48]/80"
+                    onClick={() => markAllAsRead()}
+                  >
+                    Mark all as read
+                  </Button>
+                )}
               </div>
               <div className="max-h-[300px] overflow-y-auto">
                 {notifications.length === 0 ? (
                   <div className="px-4 py-6 text-center text-xs text-muted-foreground">
-                    All caught up! No unread notifications.
+                    All caught up! No notifications.
                   </div>
                 ) : (
                   notifications.map((notification: any) => (
@@ -124,7 +133,11 @@ export function Header({ title, subtitle, hideMobileSubtitle }: HeaderProps) {
                       onClick={() => handleNotificationClick(notification)}
                     >
                       <div className="flex items-center justify-between w-full">
-                        <span className={`font-medium text-xs ${!notification.is_read ? 'text-foreground font-semibold' : 'text-muted-foreground'}`}>
+                        <span
+                          className={`font-medium text-xs ${
+                            !notification.is_read ? 'text-foreground font-semibold' : 'text-muted-foreground'
+                          }`}
+                        >
                           {notification.title}
                         </span>
                         <span className="text-[10px] text-muted-foreground">
@@ -139,46 +152,37 @@ export function Header({ title, subtitle, hideMobileSubtitle }: HeaderProps) {
             </DropdownMenuContent>
           </DropdownMenu>
 
-          {/* 2. Message Square with Pink Badge */}
+          {/* 2. Message Square */}
           <button
             type="button"
             onClick={() => navigate('/orders')}
-            className="relative p-2 rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors"
-            title="Messages & Customer Feedback"
-            aria-label="Messages"
+            className="p-2 rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors"
+            title="Orders & Feedback"
+            aria-label="Orders"
           >
             <MessageSquare className="size-5" />
-            <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-[#e11d48] text-[10px] font-bold text-white rounded-full flex items-center justify-center shadow-xs">
-              5
-            </span>
           </button>
 
-          {/* 3. Gift Icon with Dark Slate Badge */}
+          {/* 3. Gift Icon */}
           <button
             type="button"
             onClick={() => navigate('/menu')}
-            className="relative p-2 rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors hidden sm:flex"
-            title="Promotions & Special Offers"
-            aria-label="Promotions"
+            className="p-2 rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors hidden sm:flex"
+            title="Menu & Specials"
+            aria-label="Menu"
           >
             <Gift className="size-5" />
-            <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-[#334155] text-[10px] font-bold text-white rounded-full flex items-center justify-center shadow-xs">
-              2
-            </span>
           </button>
 
-          {/* 4. Settings Gear with Orange Alert Badge */}
+          {/* 4. Settings Gear */}
           <button
             type="button"
             onClick={handleSettingsClick}
-            className="relative p-2 rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors"
-            title="Settings & System Status"
+            className="p-2 rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors"
+            title="Settings"
             aria-label="Settings"
           >
             <Settings className="size-5" />
-            <span className="absolute -top-1 -right-1 size-[18px] bg-amber-500 text-[10px] font-bold text-white rounded-full flex items-center justify-center shadow-xs">
-              !
-            </span>
           </button>
 
           {/* 5. User Profile Pill / Avatar */}
@@ -193,10 +197,10 @@ export function Header({ title, subtitle, hideMobileSubtitle }: HeaderProps) {
                   {profileLoading ? (
                     <Loader2 className="size-4 animate-spin text-[#e11d48]" />
                   ) : (
-                    <span>{displayName.slice(0, 2).toUpperCase()}</span>
+                    <span>{initials}</span>
                   )}
                 </div>
-                <span className="hidden sm:inline-block text-xs font-semibold text-slate-700 max-w-[80px] truncate">
+                <span className="hidden sm:inline-block text-xs font-semibold text-slate-700 max-w-[90px] truncate">
                   {displayName}
                 </span>
               </button>
@@ -205,7 +209,9 @@ export function Header({ title, subtitle, hideMobileSubtitle }: HeaderProps) {
               <div className="px-4 py-3 border-b border-border">
                 <p className="font-semibold text-sm text-foreground">{displayName}</p>
                 <p className="text-xs text-muted-foreground mt-0.5 truncate">{user?.email}</p>
-                <p className="text-[11px] text-[#e11d48] font-bold mt-1 capitalize">{user?.role || 'Manager'}</p>
+                <p className="text-[11px] text-[#e11d48] font-bold mt-1 capitalize">
+                  {user?.role || 'Manager'}
+                </p>
               </div>
               <DropdownMenuItem onClick={handleSettingsClick} className="cursor-pointer">
                 <Settings className="size-4 mr-2" />

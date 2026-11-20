@@ -23,25 +23,56 @@ export default function Index() {
   const error = stats.isError || lowStock.isError;
   const data = stats.data;
 
-  // Calculate live total sales
-  const liveSales = useMemo(() => {
+  // Calculate actual total sales from real orders
+  const actualSales = useMemo(() => {
     return orders.reduce((sum, o) => sum + (Number(o.total_amount) || 0), 0);
   }, [orders]);
 
-  // Unique customers count
+  // Actual unique customers count from real orders
   const uniqueCustomers = useMemo(() => {
     const set = new Set<string>();
     for (const o of orders) {
-      if (o.customer_name) set.add(o.customer_name);
+      if (o.customer_name && o.customer_name.trim().length > 0) {
+        set.add(o.customer_name.trim().toLowerCase());
+      }
     }
     return set.size;
   }, [orders]);
 
-  // Metrics values for the 4 stat cards
-  const menusCount = menu.length > 0 ? menu.length : (Number(data?.inventory_count) || 56);
-  const ordersCount = orders.length > 0 ? orders.length : 785;
-  const customersCount = uniqueCustomers > 0 ? uniqueCustomers : 56;
-  const incomeValue = liveSales > 0 ? currency.format(liveSales) : '$623,780';
+  // Actual metrics values
+  const menusCount = menu.length > 0 ? menu.length : (Number(data?.inventory_count) || 0);
+  const ordersCount = orders.length;
+  const customersCount = uniqueCustomers;
+  const incomeValue = currency.format(actualSales);
+
+  // Compute past 7 days actual trend data for sparklines
+  const past7DaysData = useMemo(() => {
+    const days: { dateStr: string; orders: number; sales: number; customers: Set<string> }[] = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const dateStr = d.toISOString().split('T')[0];
+      days.push({ dateStr, orders: 0, sales: 0, customers: new Set() });
+    }
+
+    for (const o of orders) {
+      if (!o.created_at) continue;
+      const dStr = new Date(o.created_at).toISOString().split('T')[0];
+      const match = days.find((day) => day.dateStr === dStr);
+      if (match) {
+        match.orders += 1;
+        match.sales += Number(o.total_amount) || 0;
+        if (o.customer_name) match.customers.add(o.customer_name);
+      }
+    }
+
+    return {
+      orders: days.map((d) => d.orders),
+      sales: days.map((d) => d.sales),
+      customers: days.map((d) => d.customers.size),
+      menus: Array(7).fill(menusCount),
+    };
+  }, [orders, menusCount]);
 
   return (
     <DashboardLayout title="Dashboard">
@@ -64,34 +95,31 @@ export default function Index() {
         </div>
       ) : (
         <div className="space-y-6">
-          {/* ── TOP STAT CARDS (4 CARDS) ── */}
+          {/* ── TOP STAT CARDS (4 CARDS WITH ACTUAL DATA ONLY) ── */}
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
             <StatCard
               title="Menus"
               value={menusCount}
-              badge={{ value: '+4%', isPositive: true }}
               icon={UtensilsCrossed}
-              waveVariant={1}
+              dataPoints={past7DaysData.menus}
             />
             <StatCard
               title="Orders"
               value={ordersCount}
-              badge={{ value: '+2.7%', isPositive: true }}
               icon={ClipboardList}
-              waveVariant={2}
+              dataPoints={past7DaysData.orders}
             />
             <StatCard
               title="Customers"
               value={customersCount}
-              badge={{ value: '-3%', isPositive: false }}
               icon={Users}
-              waveVariant={3}
+              dataPoints={past7DaysData.customers}
             />
             <StatCard
               title="Income"
               value={incomeValue}
               icon={DollarSign}
-              waveVariant={4}
+              dataPoints={past7DaysData.sales}
             />
           </div>
 

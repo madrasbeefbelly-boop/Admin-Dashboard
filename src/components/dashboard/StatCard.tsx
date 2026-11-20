@@ -9,31 +9,64 @@ export interface StatCardProps {
     isPositive?: boolean;
   };
   icon: LucideIcon;
-  waveVariant?: 1 | 2 | 3 | 4;
+  dataPoints?: number[];
   className?: string;
 }
 
-const wavePaths: Record<number, string> = {
-  // Wave 1: Rolling undulating wave (Menus)
-  1: 'M 0,28 C 15,30 25,18 40,24 C 55,30 70,12 85,22 C 100,32 115,16 130,24 C 145,32 160,10 175,18 C 185,23 195,14 200,16',
-  // Wave 2: Energetic wave with central peak and hills (Orders)
-  2: 'M 0,30 C 12,30 20,22 30,27 C 40,32 48,12 58,26 C 68,36 78,16 88,28 C 98,38 108,6 118,18 C 128,28 138,14 148,24 C 158,32 168,10 178,20 C 188,26 195,12 200,16',
-  // Wave 3: Gentler low-amplitude rolling wave (Customers)
-  3: 'M 0,24 C 20,28 35,18 55,24 C 75,30 95,16 115,22 C 135,28 155,14 175,20 C 188,24 195,16 200,18',
-  // Wave 4: Wave rising towards right (Income)
-  4: 'M 0,30 C 30,30 60,28 90,26 C 120,24 140,8 165,12 C 180,14 190,28 200,22',
-};
+/**
+ * Converts an array of real data numbers into a smooth SVG bezier path
+ */
+function pointsToPath(points: number[] = [], width = 200, height = 40): { path: string; fillPath: string } {
+  const paddingY = 8;
+  const usableHeight = height - paddingY * 2;
+  const baselineY = height - paddingY;
+
+  if (!points || points.length === 0) {
+    const flat = `M 0,${baselineY} L ${width},${baselineY}`;
+    return { path: flat, fillPath: `${flat} L ${width},${height} L 0,${height} Z` };
+  }
+
+  const max = Math.max(...points);
+  const min = Math.min(...points);
+  const range = max - min;
+
+  // If all values are identical (e.g. all 0, or constant count)
+  if (range === 0) {
+    const y = max === 0 ? baselineY : height / 2;
+    const flat = `M 0,${y.toFixed(1)} L ${width},${y.toFixed(1)}`;
+    return { path: flat, fillPath: `${flat} L ${width},${height} L 0,${height} Z` };
+  }
+
+  const coords = points.map((val, idx) => {
+    const x = (idx / (points.length - 1)) * width;
+    const y = baselineY - ((val - min) / range) * usableHeight;
+    return { x, y };
+  });
+
+  let path = `M ${coords[0].x.toFixed(1)},${coords[0].y.toFixed(1)}`;
+  for (let i = 0; i < coords.length - 1; i++) {
+    const p0 = coords[i];
+    const p1 = coords[i + 1];
+    const cp1x = (p0.x + p1.x) / 2;
+    const cp1y = p0.y;
+    const cp2x = (p0.x + p1.x) / 2;
+    const cp2y = p1.y;
+    path += ` C ${cp1x.toFixed(1)},${cp1y.toFixed(1)} ${cp2x.toFixed(1)},${cp2y.toFixed(1)} ${p1.x.toFixed(1)},${p1.y.toFixed(1)}`;
+  }
+
+  const fillPath = `${path} L ${width},${height} L 0,${height} Z`;
+  return { path, fillPath };
+}
 
 export function StatCard({
   title,
   value,
   badge,
   icon: Icon,
-  waveVariant = 1,
+  dataPoints = [],
   className,
 }: StatCardProps) {
-  const pathD = wavePaths[waveVariant] || wavePaths[1];
-  const fillPathD = `${pathD} L 200,40 L 0,40 Z`;
+  const { path: pathD, fillPath: fillPathD } = pointsToPath(dataPoints);
 
   return (
     <div
@@ -71,7 +104,7 @@ export function StatCard({
         </div>
       </div>
 
-      {/* Bottom Sparkline Wave */}
+      {/* Bottom Sparkline Wave derived from actual data */}
       <div className="w-full pt-4 -mx-1 -mb-1 overflow-hidden">
         <svg
           viewBox="0 0 200 40"
@@ -79,14 +112,14 @@ export function StatCard({
           className="w-full h-8 sm:h-9 overflow-visible"
         >
           <defs>
-            <linearGradient id={`wave-gradient-${waveVariant}`} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#e11d48" stopOpacity="0.12" />
-              <stop offset="100%" stopColor="#e11d48" stopOpacity="0.0" />
+            <linearGradient id={`wave-gradient-${title.toLowerCase()}`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#e11d48" stopOpacity={0.12} />
+              <stop offset="100%" stopColor="#e11d48" stopOpacity={0.0} />
             </linearGradient>
           </defs>
           <path
             d={fillPathD}
-            fill={`url(#wave-gradient-${waveVariant})`}
+            fill={`url(#wave-gradient-${title.toLowerCase()})`}
           />
           <path
             d={pathD}
