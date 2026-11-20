@@ -18,7 +18,6 @@ import { useNotifications } from '@/hooks/use-notifications';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
-import { MobileSidebar } from './Sidebar';
 import { dashboardNavigation } from './navigation';
 import { cn } from '@/lib/utils';
 
@@ -70,7 +69,6 @@ export function Header({ title, subtitle, hideMobileSubtitle }: HeaderProps) {
       <div className="mx-auto flex max-w-[96rem] items-center justify-between gap-4 px-4 py-3.5 sm:px-6 xl:px-8">
         {/* Title area */}
         <div className="flex min-w-0 items-center gap-3">
-          <MobileSidebar />
           <div className="min-w-0">
             <h1 className="font-display text-xl sm:text-2xl font-bold tracking-tight text-slate-900">
               {title}
@@ -91,7 +89,7 @@ export function Header({ title, subtitle, hideMobileSubtitle }: HeaderProps) {
 
         {/* Right utility icons with real data counters only */}
         <div className="flex shrink-0 items-center gap-2 sm:gap-3">
-          <nav aria-label="Dashboard shortcuts" className="hidden items-center gap-1 md:flex">
+          <nav aria-label="Dashboard shortcuts" className="flex items-center gap-0.5 md:gap-1">
             {dashboardNavigation.map(({ name, href, icon: Icon, headerVisibility }) => (
               <NavLink
                 key={href}
@@ -100,7 +98,7 @@ export function Header({ title, subtitle, hideMobileSubtitle }: HeaderProps) {
                 aria-label={name}
                 title={name}
                 className={cn(
-                  'flex rounded-xl p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 aria-[current=page]:text-primary',
+                  'flex rounded-xl p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 aria-[current=page]:text-primary max-md:size-11 max-md:items-center max-md:justify-center',
                   headerVisibility,
                 )}
               >
@@ -113,7 +111,7 @@ export function Header({ title, subtitle, hideMobileSubtitle }: HeaderProps) {
             <DropdownMenuTrigger asChild>
               <button
                 type="button"
-                className="relative flex items-center gap-2 pl-2 pr-1 py-1 rounded-full hover:bg-slate-100 transition-colors cursor-pointer"
+                className="relative flex items-center gap-2 pl-2 pr-1 py-1 rounded-full hover:bg-slate-100 transition-colors cursor-pointer max-md:min-h-11"
                 aria-label={unreadCount > 0 ? `User account, ${unreadCount} unread notifications` : 'User account'}
               >
                 <div className="size-8 rounded-full bg-rose-100 border border-rose-200 text-[#e11d48] font-bold flex items-center justify-center text-xs shadow-xs overflow-hidden">
