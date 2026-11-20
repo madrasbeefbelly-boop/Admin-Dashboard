@@ -82,6 +82,7 @@ export interface OrderItem {
   quantity: number;
   category?: string;
   line_total?: number;
+  ingredient_cost?: number | null;
 }
 
 export interface Order {
@@ -91,7 +92,7 @@ export interface Order {
   table_no: string | null;
   payment_method: string;
   total_amount: string | number;
-  status: 'New' | 'Preparing' | 'Ready' | 'Completed' | 'Cancelled';
+  status: 'New' | 'Pending' | 'Preparing' | 'Ready' | 'Completed' | 'Served' | 'Cancelled' | 'Canceled';
   inventory_deducted?: boolean;
   inventory_deducted_at?: string | null;
   cancellation_reason?: string | null;

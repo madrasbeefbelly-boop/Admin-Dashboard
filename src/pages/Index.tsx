@@ -6,6 +6,7 @@ import { AnalyticsCharts } from '@/components/dashboard/AnalyticsCharts';
 import { Button } from '@/components/ui/button';
 import { useDashboardStats, useLowStockItems, useOrders, useMenuItems } from '@/hooks/api';
 import { Loader2, UtensilsCrossed, ClipboardList, Users, DollarSign } from 'lucide-react';
+import { isServedOrder } from '@/lib/utils';
 
 const currency = new Intl.NumberFormat('en-IN', {
   style: 'currency',
@@ -25,7 +26,7 @@ export default function Index() {
 
   // Calculate actual total sales from real orders
   const actualSales = useMemo(() => {
-    return orders.reduce((sum, o) => sum + (Number(o.total_amount) || 0), 0);
+    return orders.filter(isServedOrder).reduce((sum, o) => sum + (Number(o.total_amount) || 0), 0);
   }, [orders]);
 
   // Actual unique customers count from real orders
@@ -61,7 +62,7 @@ export default function Index() {
       const match = days.find((day) => day.dateStr === dStr);
       if (match) {
         match.orders += 1;
-        match.sales += Number(o.total_amount) || 0;
+        if (isServedOrder(o)) match.sales += Number(o.total_amount) || 0;
         if (o.customer_name) match.customers.add(o.customer_name);
       }
     }

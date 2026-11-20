@@ -140,7 +140,7 @@ CREATE TABLE inventory_items (
   name VARCHAR(255) NOT NULL,
   category VARCHAR(100),
   unit VARCHAR(50) NOT NULL,
-  current_stock DECIMAL(10, 2) NOT NULL,
+  current_stock DECIMAL(12, 4) NOT NULL,
   minimum_stock DECIMAL(10, 2),
   maximum_stock DECIMAL(10, 2),
   cost_per_unit DECIMAL(10, 2) NOT NULL,
@@ -179,6 +179,72 @@ CREATE TABLE menu_item_ingredients (
 
 CREATE INDEX idx_menu_item_ingredients_menu_item_id ON menu_item_ingredients(menu_item_id);
 CREATE INDEX idx_menu_item_ingredients_inventory_item_id ON menu_item_ingredients(inventory_item_id);
+
+CREATE TABLE orders (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  business_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
+  order_number VARCHAR(50) UNIQUE,
+  order_ref VARCHAR(50) UNIQUE,
+  client_name VARCHAR(255),
+  customer_name VARCHAR(255),
+  table_no VARCHAR(50),
+  payment_method VARCHAR(50),
+  total_value NUMERIC(12, 2),
+  total_amount NUMERIC(12, 2),
+  status VARCHAR(50) DEFAULT 'New',
+  inventory_deducted BOOLEAN NOT NULL DEFAULT FALSE,
+  inventory_deducted_at TIMESTAMP,
+  cancellation_reason TEXT,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE order_items (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  order_id UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+  menu_item_id UUID REFERENCES menu_items(id) ON DELETE SET NULL,
+  item_name VARCHAR(255),
+  name VARCHAR(255),
+  category VARCHAR(100),
+  quantity INTEGER NOT NULL CHECK (quantity > 0),
+  unit_price NUMERIC(10, 2),
+  total_price NUMERIC(12, 2),
+  line_total NUMERIC(12, 2),
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_order_items_order_id ON order_items(order_id);
+
+CREATE TABLE inventory_movements (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  business_id UUID REFERENCES businesses(id) ON DELETE CASCADE,
+  inventory_item_id UUID NOT NULL REFERENCES inventory_items(id),
+  order_id UUID REFERENCES orders(id) ON DELETE SET NULL,
+  movement_type VARCHAR(50) NOT NULL,
+  quantity NUMERIC(12, 4) NOT NULL,
+  unit VARCHAR(50) NOT NULL,
+  previous_stock NUMERIC(12, 4) NOT NULL,
+  new_stock NUMERIC(12, 4) NOT NULL,
+  notes TEXT,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_inventory_movements_order_id ON inventory_movements(order_id);
+
+CREATE TABLE order_ingredient_consumptions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  order_id UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+  order_item_id UUID REFERENCES order_items(id) ON DELETE CASCADE,
+  menu_item_id UUID REFERENCES menu_items(id) ON DELETE SET NULL,
+  inventory_item_id UUID NOT NULL REFERENCES inventory_items(id),
+  ingredient_name VARCHAR(255) NOT NULL,
+  quantity_deducted NUMERIC(12, 4) NOT NULL,
+  unit VARCHAR(50) NOT NULL,
+  cost_at_deduction NUMERIC(12, 4),
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_order_ingredient_consumptions_order_id ON order_ingredient_consumptions(order_id);
 
 -- ============================================================================
 -- PURCHASES TABLE (Purchase orders)
@@ -240,9 +306,9 @@ CREATE TABLE stock_movements (
   business_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
   inventory_item_id UUID NOT NULL REFERENCES inventory_items(id),
   movement_type VARCHAR(50) NOT NULL,
-  quantity_change DECIMAL(10, 2) NOT NULL,
-  previous_stock DECIMAL(10, 2),
-  new_stock DECIMAL(10, 2),
+  quantity_change DECIMAL(12, 4) NOT NULL,
+  previous_stock DECIMAL(12, 4),
+  new_stock DECIMAL(12, 4),
   reference_id VARCHAR(100),
   reference_type VARCHAR(50),
   created_by UUID REFERENCES users(id),

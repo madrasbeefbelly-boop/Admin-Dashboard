@@ -324,12 +324,13 @@ export const useUpdateOrderStatus = () => {
   return useMutation<any, Error, { id: string; status: string; cancellation_reason?: string }>({
     mutationFn: ({ id, status, cancellation_reason }) =>
       ordersAPI.updateStatus(id, { status, cancellation_reason }),
-    onSuccess: () => {
+    onSuccess: (_, { id }) => {
       queryClient.invalidateQueries({ queryKey: ['orders'] });
       queryClient.invalidateQueries({ queryKey: ['inventory'] });
       queryClient.invalidateQueries({ queryKey: ['lowStockItems'] });
       queryClient.invalidateQueries({ queryKey: ['dashboardStats'] });
       queryClient.invalidateQueries({ queryKey: ['inventoryMovements'] });
+      queryClient.invalidateQueries({ queryKey: ['orderRequirements', id] });
       queryClient.invalidateQueries({ queryKey: ['menuItems'] });
     },
   });

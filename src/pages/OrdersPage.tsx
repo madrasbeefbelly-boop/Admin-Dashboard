@@ -170,14 +170,15 @@ export default function OrdersPage() {
 
     try {
       setUpdatingOrderId(order.id);
-      await updateStatus.mutateAsync({
+      const response = await updateStatus.mutateAsync({
         id: order.id,
         status: nextStatus,
         cancellation_reason: reason,
       });
 
       if (nextStatus === 'Served') {
-        toast.success(`Order ${order.order_ref} served! Ingredients deducted.`);
+        const deducted = response.data.data?.deduction_count > 0;
+        toast.success(`Order ${order.order_ref} served.${deducted ? ' Linked ingredients deducted.' : ''}`);
       } else {
         toast.info(`Order ${order.order_ref} marked Canceled.`);
       }
@@ -336,6 +337,9 @@ export default function OrdersPage() {
                         <p className="text-xs text-muted-foreground tabular-nums mt-0.5">
                           ₹{ci.unit_price.toFixed(0)} × {ci.quantity}
                         </p>
+                        {!menuItems.find((item) => item.id === ci.menu_item_id)?.ingredients?.length && (
+                          <p className="mt-0.5 text-xs text-amber-800">No recipe linked. Stock and cost won’t be recorded.</p>
+                        )}
                       </div>
                       <span className="font-semibold tabular-nums text-sm shrink-0">
                         ₹{(ci.unit_price * ci.quantity).toFixed(0)}

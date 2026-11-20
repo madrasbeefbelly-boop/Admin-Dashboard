@@ -15,6 +15,7 @@ import { Badge } from '@/components/ui/badge';
 import { useOrders, usePurchases } from '@/hooks/api';
 import { Award, Utensils, ArrowUpRight, ChevronDown } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { isServedOrder } from '@/lib/utils';
 
 const currency = new Intl.NumberFormat('en-IN', {
   style: 'currency',
@@ -25,14 +26,15 @@ const currency = new Intl.NumberFormat('en-IN', {
 export function AnalyticsCharts() {
   const { data: orders = [] } = useOrders();
   const { data: purchases = [] } = usePurchases();
+  const servedOrders = useMemo(() => orders.filter(isServedOrder), [orders]);
 
   const [timeFilter, setTimeFilter] = useState<'Monthly' | 'Weekly'>('Monthly');
   const [customerFilter, setCustomerFilter] = useState<'Monthly' | 'Weekly'>('Monthly');
 
   // Actual live Total Sales from orders
   const actualSales = useMemo(() => {
-    return orders.reduce((sum, o) => sum + (Number(o.total_amount) || 0), 0);
-  }, [orders]);
+    return servedOrders.reduce((sum, o) => sum + (Number(o.total_amount) || 0), 0);
+  }, [servedOrders]);
 
   // Actual live Costs from logged purchases
   const actualCosts = useMemo(() => {
@@ -49,7 +51,7 @@ export function AnalyticsCharts() {
       { name: string; quantity: number; revenue: number; category: string }
     > = {};
 
-    for (const order of orders) {
+    for (const order of servedOrders) {
       if (!Array.isArray(order.items)) continue;
       for (const item of order.items) {
         if (!item.name) continue;
@@ -71,7 +73,7 @@ export function AnalyticsCharts() {
     return Object.values(itemMap)
       .sort((a, b) => b.quantity - a.quantity)
       .slice(0, 3);
-  }, [orders]);
+  }, [servedOrders]);
 
   const maxQuantity = top3Selling[0]?.quantity || 1;
 
@@ -88,7 +90,7 @@ export function AnalyticsCharts() {
         days.push({ key, label, income: 0, expense: 0 });
       }
 
-      for (const o of orders) {
+      for (const o of servedOrders) {
         if (!o.created_at) continue;
         const key = new Date(o.created_at).toISOString().split('T')[0];
         const match = days.find((day) => day.key === key);
@@ -116,7 +118,7 @@ export function AnalyticsCharts() {
       months.push({ key, label, income: 0, expense: 0 });
     }
 
-    for (const o of orders) {
+    for (const o of servedOrders) {
       if (!o.created_at) continue;
       const d = new Date(o.created_at);
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
@@ -134,7 +136,7 @@ export function AnalyticsCharts() {
     }
 
     return months;
-  }, [orders, purchases, timeFilter]);
+  }, [servedOrders, purchases, timeFilter]);
 
   // Max value for Revenue Y-Axis
   const maxRevenueVal = useMemo(() => {
@@ -162,7 +164,7 @@ export function AnalyticsCharts() {
         const key = new Date(o.created_at).toISOString().split('T')[0];
         const match = days.find((day) => day.key === key);
         if (match) {
-          if (o.status?.toLowerCase() === 'cancelled') {
+          if (o.status === 'Canceled' || o.status === 'Cancelled') {
             match.negative -= 1;
           } else {
             match.positive += 1;
@@ -189,7 +191,7 @@ export function AnalyticsCharts() {
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
       const match = months.find((m) => m.key === key);
       if (match) {
-        if (o.status?.toLowerCase() === 'cancelled') {
+        if (o.status === 'Canceled' || o.status === 'Cancelled') {
           match.negative -= 1;
         } else {
           match.positive += 1;
