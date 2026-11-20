@@ -494,9 +494,28 @@
     font-size: clamp(0.875rem, 3.6vw, 1.5rem);
   }
 
+  .dashboard-counts .stat-card,
+  .summary-counts .stat-card {
+    grid-template-rows: auto minmax(0, 1fr) auto;
+  }
+
+  .dashboard-counts .stat-card-value,
+  .summary-counts .stat-card-value {
+    grid-area: 3 / 1 / 4 / -1;
+  }
+
+  .dashboard-counts .stat-card-chart,
   .summary-counts .stat-card-chart {
-    width: clamp(1.75rem, 8.5vw, 4rem);
-    height: 1.625rem;
+    grid-area: 2 / 1 / 3 / -1;
+    justify-self: end;
+    width: 88%;
+    height: 100%;
+    max-height: 6rem;
+  }
+
+  .summary-counts .stat-card-chart {
+    width: 94%;
+    max-height: 4.5rem;
   }
 
   .mobile-records,
