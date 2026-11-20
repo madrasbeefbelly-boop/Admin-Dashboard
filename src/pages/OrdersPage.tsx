@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
@@ -10,26 +11,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import {
   Plus,
   Minus,
-  Printer,
   Trash2,
   Loader2,
-  CheckCircle2,
   Receipt,
   ShoppingBag,
+  PrinterX,
+  CheckCircle2,
+  Clock,
 } from 'lucide-react';
-import { useMenuItems, useCreateOrder } from '@/hooks/api';
+import { useMenuItems, useCreateOrder, useOrders, useDeleteOrder } from '@/hooks/api';
 import { toast } from 'sonner';
 import type { OrderItem } from '@/types';
 
@@ -41,27 +35,34 @@ function formatPrice(value: string | number | null | undefined): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+function timeAgo(dateStr: string) {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return new Date(dateStr).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+}
+
 export default function OrdersPage() {
-  const { data: menuItems = [], isLoading, error, refetch } = useMenuItems();
+  const { data: menuItems = [], isLoading: menuLoading, error: menuError, refetch: menuRefetch } = useMenuItems();
+  const { data: orders = [], isLoading: ordersLoading } = useOrders();
   const createOrder = useCreateOrder();
+  const deleteOrder = useDeleteOrder();
 
   const [selectedId, setSelectedId] = useState('');
   const [cart, setCart] = useState<OrderItem[]>([]);
-  const [billDialogOpen, setBillDialogOpen] = useState(false);
-  const [orderPlaced, setOrderPlaced] = useState(false);
-  const [lastOrderRef, setLastOrderRef] = useState('');
+  const [printerError, setPrinterError] = useState(false);
+  const [lastRef, setLastRef] = useState('');
 
-  // Show all menu items — same list as the Menu page
   const availableItems = useMemo(() => menuItems, [menuItems]);
 
   const subtotal = cart.reduce((sum, ci) => sum + ci.unit_price * ci.quantity, 0);
   const totalItems = cart.reduce((sum, ci) => sum + ci.quantity, 0);
 
   const handleAddItem = () => {
-    if (!selectedId) {
-      toast.error('Please select an item first');
-      return;
-    }
+    if (!selectedId) { toast.error('Select an item first'); return; }
     const item = availableItems.find((i) => i.id === selectedId);
     if (!item) return;
     const price = formatPrice(item.selling_price) ?? 0;
@@ -72,39 +73,24 @@ export default function OrdersPage() {
           ci.menu_item_id === item.id ? { ...ci, quantity: ci.quantity + 1 } : ci,
         );
       }
-      return [
-        ...prev,
-        {
-          menu_item_id: item.id,
-          name: item.name,
-          unit_price: price,
-          quantity: 1,
-          category: item.category,
-        },
-      ];
+      return [...prev, { menu_item_id: item.id, name: item.name, unit_price: price, quantity: 1, category: item.category }];
     });
     setSelectedId('');
   };
 
-  const changeQty = (id: string, delta: number) => {
+  const changeQty = (id: string, delta: number) =>
     setCart((prev) =>
-      prev
-        .map((ci) => (ci.menu_item_id === id ? { ...ci, quantity: ci.quantity + delta } : ci))
-        .filter((ci) => ci.quantity > 0),
+      prev.map((ci) => ci.menu_item_id === id ? { ...ci, quantity: ci.quantity + delta } : ci)
+          .filter((ci) => ci.quantity > 0),
     );
-  };
 
-  const removeFromCart = (id: string) => {
+  const removeFromCart = (id: string) =>
     setCart((prev) => prev.filter((ci) => ci.menu_item_id !== id));
-  };
 
   const clearCart = () => setCart([]);
 
   const handlePlaceOrder = async () => {
-    if (cart.length === 0) {
-      toast.error('Add at least one item to place an order');
-      return;
-    }
+    if (cart.length === 0) { toast.error('Add at least one item'); return; }
     try {
       const result = await createOrder.mutateAsync({
         customer_name: null,
@@ -113,26 +99,28 @@ export default function OrdersPage() {
         items: cart,
         total_amount: subtotal,
       });
-      const ref =
-        result?.data?.data?.order_ref ?? result?.data?.order_ref ?? '—';
-      setLastOrderRef(ref);
-      setOrderPlaced(true);
-      setBillDialogOpen(true);
+      const ref = result?.data?.data?.order_ref ?? result?.data?.order_ref ?? '—';
+      setLastRef(ref);
+      clearCart();
+      setPrinterError(true);   // ← show printer warning
     } catch {
       toast.error('Could not place order. Please try again.');
     }
   };
 
-  const handleNewOrder = () => {
-    clearCart();
-    setBillDialogOpen(false);
-    setOrderPlaced(false);
-    setLastOrderRef('');
+  const handleDeleteOrder = async (id: string) => {
+    if (!window.confirm('Delete this order?')) return;
+    try {
+      await deleteOrder.mutateAsync(id);
+      toast.success('Order deleted');
+    } catch {
+      toast.error('Could not delete order');
+    }
   };
 
-  if (isLoading) {
+  if (menuLoading) {
     return (
-      <DashboardLayout title="New Order" subtitle="Select items and generate a bill">
+      <DashboardLayout title="Orders" subtitle="Place orders and track sales">
         <div className="flex h-64 items-center justify-center">
           <Loader2 className="size-8 animate-spin text-gold" />
         </div>
@@ -140,27 +128,45 @@ export default function OrdersPage() {
     );
   }
 
-  if (error) {
+  if (menuError) {
     return (
-      <DashboardLayout title="New Order" subtitle="Select items and generate a bill">
+      <DashboardLayout title="Orders" subtitle="Place orders and track sales">
         <div className="card-premium p-8 text-center text-destructive">
-          Failed to load menu. Make sure the backend server is running.
-          <Button onClick={() => refetch()} className="mt-4 block mx-auto">
-            Try Again
-          </Button>
+          Failed to load menu.
+          <Button onClick={() => menuRefetch()} className="mt-4 block mx-auto">Try Again</Button>
         </div>
       </DashboardLayout>
     );
   }
 
   return (
-    <DashboardLayout title="New Order" subtitle="Select items and generate a bill">
-      <div className="max-w-lg mx-auto space-y-4">
+    <DashboardLayout title="Orders" subtitle="Place orders and track sales">
+
+      {/* ── Printer error banner ── */}
+      {printerError && (
+        <div className="mb-5 flex items-center gap-3 rounded-xl border border-destructive/40 bg-destructive/10 px-5 py-4">
+          <PrinterX className="size-6 text-destructive shrink-0" />
+          <div className="flex-1">
+            <p className="font-semibold text-destructive">PLEASE CONNECT THE BILL PRINTER</p>
+            <p className="text-sm text-muted-foreground">
+              Order <span className="font-mono font-medium">{lastRef}</span> was saved successfully.
+              Bill will print once the printer is connected.
+            </p>
+          </div>
+          <button
+            className="shrink-0 rounded-lg px-3 py-1.5 text-xs font-medium text-destructive hover:bg-destructive/10 border border-destructive/30"
+            onClick={() => setPrinterError(false)}
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
+      <div className="max-w-lg space-y-4">
 
         {/* ── Item selector ── */}
         <div className="card-premium p-5 space-y-3">
           <p className="text-sm font-medium text-muted-foreground">Select item</p>
-
           <Select value={selectedId} onValueChange={setSelectedId}>
             <SelectTrigger className="w-full" aria-label="Select a menu item">
               <SelectValue placeholder="— Choose a dish —" />
@@ -168,7 +174,7 @@ export default function OrdersPage() {
             <SelectContent>
               {availableItems.length === 0 ? (
                 <SelectItem value="__none" disabled>
-                  No menu items found — add dishes in Menu &amp; Costing
+                  No menu items — add dishes in Menu &amp; Costing
                 </SelectItem>
               ) : (
                 availableItems.map((item) => {
@@ -187,7 +193,6 @@ export default function OrdersPage() {
               )}
             </SelectContent>
           </Select>
-
           <Button
             className="w-full bg-gold hover:bg-gold-light text-primary-foreground font-semibold"
             onClick={handleAddItem}
@@ -197,9 +202,8 @@ export default function OrdersPage() {
           </Button>
         </div>
 
-        {/* ── Order summary ── */}
+        {/* ── Cart ── */}
         <div className="card-premium overflow-hidden">
-          {/* Header */}
           <div className="flex items-center gap-2 px-5 py-4 border-b border-border">
             <ShoppingBag className="size-4 text-gold" />
             <span className="font-semibold">Current Order</span>
@@ -210,7 +214,6 @@ export default function OrdersPage() {
             )}
           </div>
 
-          {/* Cart items */}
           <ScrollArea className="max-h-72">
             {cart.length === 0 ? (
               <div className="px-5 py-10 text-center">
@@ -222,9 +225,7 @@ export default function OrdersPage() {
                 {cart.map((ci) => (
                   <div key={ci.menu_item_id} className="flex items-center gap-3 px-5 py-3">
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium leading-tight [overflow-wrap:anywhere]">
-                        {ci.name}
-                      </p>
+                      <p className="text-sm font-medium leading-tight [overflow-wrap:anywhere]">{ci.name}</p>
                       <p className="text-xs text-muted-foreground tabular-nums">
                         ₹{ci.unit_price.toFixed(0)} × {ci.quantity}
                       </p>
@@ -232,30 +233,11 @@ export default function OrdersPage() {
                     <span className="font-semibold tabular-nums text-sm shrink-0">
                       ₹{(ci.unit_price * ci.quantity).toFixed(0)}
                     </span>
-                    {/* qty controls */}
                     <div className="flex items-center gap-1 shrink-0">
-                      <button
-                        className="size-6 rounded flex items-center justify-center hover:bg-secondary"
-                        onClick={() => changeQty(ci.menu_item_id, -1)}
-                        aria-label="Remove one"
-                      >
-                        <Minus className="size-3" />
-                      </button>
+                      <button className="size-6 rounded flex items-center justify-center hover:bg-secondary" onClick={() => changeQty(ci.menu_item_id, -1)} aria-label="Remove one"><Minus className="size-3" /></button>
                       <span className="text-xs w-4 text-center tabular-nums">{ci.quantity}</span>
-                      <button
-                        className="size-6 rounded flex items-center justify-center hover:bg-secondary"
-                        onClick={() => changeQty(ci.menu_item_id, 1)}
-                        aria-label="Add one"
-                      >
-                        <Plus className="size-3" />
-                      </button>
-                      <button
-                        className="size-6 rounded flex items-center justify-center text-destructive hover:bg-destructive/10"
-                        onClick={() => removeFromCart(ci.menu_item_id)}
-                        aria-label={`Remove ${ci.name}`}
-                      >
-                        <Trash2 className="size-3" />
-                      </button>
+                      <button className="size-6 rounded flex items-center justify-center hover:bg-secondary" onClick={() => changeQty(ci.menu_item_id, 1)} aria-label="Add one"><Plus className="size-3" /></button>
+                      <button className="size-6 rounded flex items-center justify-center text-destructive hover:bg-destructive/10" onClick={() => removeFromCart(ci.menu_item_id)} aria-label={`Remove ${ci.name}`}><Trash2 className="size-3" /></button>
                     </div>
                   </div>
                 ))}
@@ -263,41 +245,24 @@ export default function OrdersPage() {
             )}
           </ScrollArea>
 
-          {/* Total + actions */}
-          <div
-            className={cn(
-              'px-5 py-4 space-y-3',
-              cart.length > 0 && 'border-t border-border',
-            )}
-          >
+          <div className={cn('px-5 py-4 space-y-3', cart.length > 0 && 'border-t border-border')}>
             <div className="flex items-center justify-between font-semibold text-lg">
               <span>Total</span>
               <span className="text-gold tabular-nums">{currency.format(subtotal)}</span>
             </div>
-
             <Button
               className="w-full bg-gold hover:bg-gold-light text-primary-foreground font-semibold"
               disabled={cart.length === 0 || createOrder.isPending}
               onClick={handlePlaceOrder}
             >
               {createOrder.isPending ? (
-                <>
-                  <Loader2 className="size-4 mr-2 animate-spin" /> Placing…
-                </>
+                <><Loader2 className="size-4 mr-2 animate-spin" /> Placing…</>
               ) : (
-                <>
-                  <Receipt className="size-4 mr-2" /> Place Order & Generate Bill
-                </>
+                <><Receipt className="size-4 mr-2" /> Place Order & Generate Bill</>
               )}
             </Button>
-
             {cart.length > 0 && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="w-full text-muted-foreground hover:text-destructive"
-                onClick={clearCart}
-              >
+              <Button variant="ghost" size="sm" className="w-full text-muted-foreground hover:text-destructive" onClick={clearCart}>
                 <Trash2 className="size-3.5 mr-1.5" /> Clear order
               </Button>
             )}
@@ -305,77 +270,68 @@ export default function OrdersPage() {
         </div>
       </div>
 
-      {/* ── Bill Dialog ── */}
-      <Dialog open={billDialogOpen} onOpenChange={setBillDialogOpen}>
-        <DialogContent className="max-w-sm max-h-[calc(100dvh-2rem)] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-gold">
-              {orderPlaced && <CheckCircle2 className="size-5 text-success" />}
-              Bill Receipt
-            </DialogTitle>
-            <DialogDescription>
-              {orderPlaced
-                ? `Order ${lastOrderRef} placed successfully.`
-                : 'Preview bill below.'}
-            </DialogDescription>
-          </DialogHeader>
-
-          {/* Printable bill */}
-          <div className="font-mono text-sm space-y-3 py-2">
-            <div className="text-center space-y-0.5">
-              <p className="font-bold text-base tracking-wide">MADRAS BEEF BIRIYANI</p>
-              <p className="text-xs text-muted-foreground">Order Receipt</p>
-              {lastOrderRef && (
-                <p className="text-xs text-muted-foreground">Ref: {lastOrderRef}</p>
-              )}
-              <p className="text-xs text-muted-foreground">
-                {new Date().toLocaleString('en-IN', {
-                  dateStyle: 'medium',
-                  timeStyle: 'short',
-                })}
-              </p>
-            </div>
-
-            <Separator className="border-dashed" />
-
-            <div className="space-y-1">
-              {cart.map((ci) => (
-                <div key={ci.menu_item_id} className="flex justify-between gap-2">
-                  <span className="flex-1 truncate">
-                    {ci.name} ×{ci.quantity}
-                  </span>
-                  <span className="tabular-nums shrink-0">
-                    ₹{(ci.unit_price * ci.quantity).toFixed(0)}
-                  </span>
+      {/* ── Past Orders ── */}
+      <div className="mt-8">
+        <h2 className="font-semibold text-lg mb-4">Order History</h2>
+        {ordersLoading ? (
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <Loader2 className="size-4 animate-spin" /> Loading orders…
+          </div>
+        ) : orders.length === 0 ? (
+          <div className="card-premium py-12 text-center">
+            <Clock className="mx-auto mb-2 size-8 text-muted-foreground/30" />
+            <p className="text-muted-foreground text-sm">No orders placed yet</p>
+          </div>
+        ) : (
+          <div className="card-premium overflow-hidden">
+            <div className="divide-y divide-border">
+              {orders.map((order) => (
+                <div key={order.id} className="flex items-center gap-4 px-5 py-3.5">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-mono text-sm font-medium">{order.order_ref}</span>
+                      <Badge variant="outline" className="text-[11px] text-success border-success/30 bg-success/5">
+                        <CheckCircle2 className="size-2.5 mr-1" />{order.status}
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {Array.isArray(order.items) && order.items.length > 0
+                        ? order.items.map((i: any) => `${i.name} ×${i.quantity}`).join(' · ')
+                        : 'No item details'}
+                    </p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="font-semibold text-gold tabular-nums">
+                      {currency.format(Number(order.total_amount))}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {new Date(order.created_at).toLocaleString('en-IN', {
+                        day: '2-digit', month: 'short', year: 'numeric',
+                        hour: '2-digit', minute: '2-digit', hour12: true,
+                      })}
+                      {' · '}{timeAgo(order.created_at)}
+                    </p>
+                  </div>
+                  <button
+                    className="size-7 rounded flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 shrink-0"
+                    onClick={() => handleDeleteOrder(order.id)}
+                    aria-label="Delete order"
+                  >
+                    <Trash2 className="size-3.5" />
+                  </button>
                 </div>
               ))}
             </div>
-
-            <Separator className="border-dashed" />
-
-            <div className="flex justify-between font-bold">
-              <span>TOTAL</span>
-              <span className="tabular-nums">₹{subtotal.toFixed(2)}</span>
+            <div className="px-5 py-3 border-t border-border flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">{orders.length} order{orders.length !== 1 && 's'} total</span>
+              <span className="font-semibold text-gold tabular-nums">
+                {currency.format(orders.reduce((s, o) => s + Number(o.total_amount), 0))} revenue
+              </span>
             </div>
-
-            <p className="text-center text-xs text-muted-foreground pt-1">
-              Thank you! Visit again 🙏
-            </p>
           </div>
+        )}
+      </div>
 
-          <DialogFooter className="flex-col gap-2 sm:flex-col">
-            <Button
-              className="w-full bg-gold hover:bg-gold-light"
-              onClick={() => window.print()}
-            >
-              <Printer className="size-4 mr-2" /> Print Bill
-            </Button>
-            <Button variant="outline" className="w-full" onClick={handleNewOrder}>
-              <Plus className="size-4 mr-2" /> New Order
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </DashboardLayout>
   );
 }
