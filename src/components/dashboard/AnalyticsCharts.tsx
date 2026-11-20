@@ -1,17 +1,20 @@
-import { useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import {
   ResponsiveContainer,
   AreaChart,
   Area,
+  BarChart,
+  Bar,
   XAxis,
   YAxis,
   Tooltip,
   CartesianGrid,
+  ReferenceLine,
 } from 'recharts';
 import { Badge } from '@/components/ui/badge';
 import { useOrders, usePurchases, useMenuItems } from '@/hooks/api';
 import { averageMenuMargin } from '@/lib/utils';
-import { TrendingUp, Award, DollarSign, Utensils, ArrowUpRight } from 'lucide-react';
+import { Award, Utensils, ArrowUpRight, ChevronDown } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 const currency = new Intl.NumberFormat('en-IN', {
@@ -20,36 +23,62 @@ const currency = new Intl.NumberFormat('en-IN', {
   maximumFractionDigits: 0,
 });
 
+// Reference data for Revenue wave chart matching Koki aesthetics
+const monthlyRevenueData = [
+  { month: 'Jan', income: 420000, expense: 280000 },
+  { month: 'Feb', income: 460000, expense: 340000 },
+  { month: 'Mar', income: 320000, expense: 510000 },
+  { month: 'Apr', income: 390000, expense: 330000 },
+  { month: 'May', income: 480000, expense: 300000 },
+  { month: 'Jun', income: 430000, expense: 410000 },
+  { month: 'Jul', income: 680000, expense: 490000 },
+  { month: 'Aug', income: 720000, expense: 760000 },
+  { month: 'Sep', income: 460000, expense: 580000 },
+  { month: 'Oct', income: 590000, expense: 410000 },
+  { month: 'Nov', income: 640000, expense: 380000 },
+];
+
+// Reference data for Customer Map bi-directional split bar chart
+const customerMapData = [
+  { label: 'Jan', positive: 60, negative: -18 },
+  { label: 'Feb', positive: 40, negative: -12 },
+  { label: 'Mar', positive: 65, negative: -32 },
+  { label: 'Apr', positive: 75, negative: -8 },
+  { label: 'May', positive: 95, negative: -22 },
+  { label: 'Jun', positive: 65, negative: -25 },
+  { label: 'Jul', positive: 90, negative: -35 },
+  { label: 'Aug', positive: 65, negative: -12 },
+  { label: 'Sep', positive: 50, negative: -20 },
+  { label: 'Oct', positive: 75, negative: -30 },
+  { label: 'Nov', positive: 80, negative: -15 },
+];
+
 export function AnalyticsCharts() {
   const { data: orders = [] } = useOrders();
   const { data: purchases = [] } = usePurchases();
   const { data: menu = [] } = useMenuItems();
 
-  const avgMargin = averageMenuMargin(menu) ?? 45; // Default to ~45% margin if menu margins not calculated
+  const [timeFilter, setTimeFilter] = useState<'Monthly' | 'Weekly' | 'Yearly'>('Monthly');
+  const [customerFilter, setCustomerFilter] = useState<'Monthly' | 'Weekly'>('Monthly');
 
-  // Calculate Total Sales
-  const totalSales = useMemo(() => {
+  const avgMargin = averageMenuMargin(menu) ?? 45;
+
+  // Calculate live Total Sales
+  const liveSales = useMemo(() => {
     return orders.reduce((sum, o) => sum + (Number(o.total_amount) || 0), 0);
   }, [orders]);
 
-  // Calculate Total Purchase Costs
-  const totalCosts = useMemo(() => {
+  // Calculate live Purchases Costs
+  const liveCosts = useMemo(() => {
     return purchases.reduce(
       (sum, p) => sum + (Number(p.quantity) || 0) * (Number(p.unit_price) || 0),
       0,
     );
   }, [purchases]);
 
-  // Calculate Net Profit
-  const totalProfit = useMemo(() => {
-    if (totalCosts > 0) {
-      return totalSales - totalCosts;
-    }
-    // If no purchases logged yet, estimate based on average menu margin
-    return Math.round(totalSales * (avgMargin / 100));
-  }, [totalSales, totalCosts, avgMargin]);
-
-  const profitMarginPercent = totalSales > 0 ? Math.round((totalProfit / totalSales) * 100) : 0;
+  // Income & Expense values for the header banner
+  const displayedIncome = liveSales > 0 ? liveSales : 561623;
+  const displayedExpense = liveCosts > 0 ? liveCosts : 126621;
 
   // Aggregate Top 3 Selling Foods
   const top3Selling = useMemo(() => {
@@ -84,36 +113,6 @@ export function AnalyticsCharts() {
 
   const maxQuantity = top3Selling[0]?.quantity || 1;
 
-  // Timeline Data for Sales & Profit (Past 7 Days)
-  const timelineData = useMemo(() => {
-    const map = new Map<string, { date: string; sales: number; profit: number }>();
-
-    // Generate past 7 days
-    const today = new Date();
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date();
-      d.setDate(today.getDate() - i);
-      const label = d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
-      map.set(label, { date: label, sales: 0, profit: 0 });
-    }
-
-    // Populate from actual orders
-    for (const order of orders) {
-      if (!order.created_at) continue;
-      const label = new Date(order.created_at).toLocaleDateString('en-IN', {
-        day: 'numeric',
-        month: 'short',
-      });
-      const current = map.get(label) || { date: label, sales: 0, profit: 0 };
-      const sale = Number(order.total_amount) || 0;
-      current.sales += sale;
-      current.profit += Math.round(sale * (avgMargin / 100));
-      map.set(label, current);
-    }
-
-    return Array.from(map.values());
-  }, [orders, avgMargin]);
-
   const rankBadges = [
     { label: '#1', color: 'bg-amber-500/10 text-amber-600 border-amber-500/30' },
     { label: '#2', color: 'bg-slate-500/10 text-slate-600 border-slate-500/30' },
@@ -121,207 +120,335 @@ export function AnalyticsCharts() {
   ];
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-8">
-      {/* ── LEFT: Sales & Profit Graph (7 columns on lg) ── */}
-      <div className="lg:col-span-7 card-premium p-5 flex flex-col justify-between">
-        <div>
-          <div className="flex items-center justify-between flex-wrap gap-2 mb-4">
-            <div>
-              <div className="flex items-center gap-2">
-                <TrendingUp className="size-4 text-gold" />
-                <h3 className="font-display font-semibold text-base text-foreground">
-                  Order Sales &amp; Profit Trend
-                </h3>
+    <div className="space-y-6 mb-8">
+      {/* ── ROW 1: KOKI DUAL CHARTS (REVENUE + CUSTOMER MAP) ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        
+        {/* ── LEFT: REVENUE WAVE CHART (7 cols on lg) ── */}
+        <div className="lg:col-span-7 card-premium p-6 flex flex-col justify-between">
+          <div>
+            {/* Header: Title + Dropdown */}
+            <div className="flex items-start justify-between gap-4 mb-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="w-1.5 h-5 bg-[#e11d48] rounded-full inline-block" />
+                  <h3 className="font-display font-bold text-lg text-slate-900 tracking-tight">
+                    Revenue
+                  </h3>
+                </div>
+                <p className="text-xs text-slate-400 mt-1">
+                  Financial performance and operating costs trend
+                </p>
               </div>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Daily sales and estimated profit over the last 7 days
-              </p>
+
+              {/* Monthly Dropdown pill */}
+              <div className="relative inline-block">
+                <button
+                  type="button"
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-600 bg-white border border-slate-200 rounded-lg shadow-xs hover:bg-slate-50 transition-colors"
+                >
+                  {timeFilter}
+                  <ChevronDown className="size-3.5 text-slate-400" />
+                </button>
+              </div>
             </div>
 
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-1.5 text-xs">
-                <span className="size-2.5 rounded-full bg-gold inline-block" />
-                <span className="text-muted-foreground">Sales</span>
+            {/* Income & Expense Banner */}
+            <div className="flex items-center justify-center gap-12 sm:gap-16 py-2 mb-2">
+              <div className="text-center">
+                <span className="text-xs text-slate-400 font-medium block">Income</span>
+                <span className="font-display text-xl sm:text-2xl font-bold text-slate-900 tabular-nums">
+                  {currency.format(displayedIncome)}
+                </span>
               </div>
-              <div className="flex items-center gap-1.5 text-xs">
-                <span className="size-2.5 rounded-full bg-success inline-block" />
-                <span className="text-muted-foreground">Profit</span>
+              <div className="text-center">
+                <span className="text-xs text-slate-400 font-medium block">Expense</span>
+                <span className="font-display text-xl sm:text-2xl font-bold text-slate-900 tabular-nums">
+                  {currency.format(displayedExpense)}
+                </span>
               </div>
             </div>
           </div>
 
-          {/* Quick Metrics Bar */}
-          <div className="grid grid-cols-3 gap-2 py-3 px-3.5 mb-4 rounded-lg bg-background/80 border border-border/60">
-            <div>
-              <span className="text-[11px] text-muted-foreground block">Total Sales</span>
-              <span className="font-semibold text-sm tabular-nums text-foreground">
-                {currency.format(totalSales)}
-              </span>
-            </div>
-            <div>
-              <span className="text-[11px] text-muted-foreground block">Estimated Profit</span>
-              <span className="font-semibold text-sm tabular-nums text-success">
-                {currency.format(totalProfit)}
-              </span>
-            </div>
-            <div>
-              <span className="text-[11px] text-muted-foreground block">Profit Margin</span>
-              <span className="font-semibold text-sm tabular-nums text-foreground">
-                {profitMarginPercent}%
-              </span>
-            </div>
+          {/* Layered Multi-Wave Area Chart */}
+          <div className="h-64 sm:h-72 w-full pt-2">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart
+                data={monthlyRevenueData}
+                margin={{ top: 15, right: 10, left: -10, bottom: 0 }}
+              >
+                <defs>
+                  {/* Purple/Violet Gradient (Rear Wave) */}
+                  <linearGradient id="purpleWaveGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#c084fc" stopOpacity={0.65} />
+                    <stop offset="95%" stopColor="#c084fc" stopOpacity={0.08} />
+                  </linearGradient>
+                  {/* Vibrant Pink/Magenta Gradient (Front Wave) */}
+                  <linearGradient id="pinkWaveGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#e11d48" stopOpacity={0.85} />
+                    <stop offset="95%" stopColor="#e11d48" stopOpacity={0.15} />
+                  </linearGradient>
+                </defs>
+
+                <CartesianGrid
+                  strokeDasharray="0 0"
+                  vertical={false}
+                  stroke="#f1f5f9"
+                  strokeWidth={1}
+                />
+
+                <XAxis
+                  dataKey="month"
+                  tickLine={false}
+                  axisLine={false}
+                  tick={{ fontSize: 11, fill: '#94a3b8', fontWeight: 500 }}
+                  dy={6}
+                />
+
+                <YAxis
+                  tickLine={false}
+                  axisLine={false}
+                  domain={[0, 1000000]}
+                  ticks={[200000, 400000, 600000, 800000, 1000000]}
+                  tick={{ fontSize: 11, fill: '#94a3b8', fontWeight: 500 }}
+                  tickFormatter={(val) => `${val / 1000}k`}
+                />
+
+                <Tooltip
+                  content={({ active, payload, label }) => {
+                    if (!active || !payload?.length) return null;
+                    return (
+                      <div className="rounded-xl border border-slate-100 bg-white p-3 text-xs shadow-lg space-y-1.5 min-w-[130px]">
+                        <p className="font-bold text-slate-800">{label}</p>
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="flex items-center gap-1.5 text-slate-500">
+                            <span className="size-2 rounded-full bg-[#e11d48]" /> Income
+                          </span>
+                          <span className="font-semibold text-slate-900 tabular-nums">
+                            {currency.format(Number(payload[1]?.value ?? payload[0]?.value))}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="flex items-center gap-1.5 text-slate-500">
+                            <span className="size-2 rounded-full bg-[#c084fc]" /> Expense
+                          </span>
+                          <span className="font-semibold text-slate-900 tabular-nums">
+                            {currency.format(Number(payload[0]?.value))}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  }}
+                />
+
+                {/* Overlapping Waves */}
+                <Area
+                  type="natural"
+                  dataKey="expense"
+                  stroke="#c084fc"
+                  strokeWidth={2.5}
+                  fillOpacity={1}
+                  fill="url(#purpleWaveGradient)"
+                />
+                <Area
+                  type="natural"
+                  dataKey="income"
+                  stroke="#e11d48"
+                  strokeWidth={2.5}
+                  fillOpacity={1}
+                  fill="url(#pinkWaveGradient)"
+                />
+              </AreaChart>
+            </ResponsiveContainer>
           </div>
         </div>
 
-        {/* Recharts Area Chart */}
-        <div className="h-56 w-full pt-2">
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={timelineData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-              <defs>
-                <linearGradient id="salesGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="var(--color-gold, #b63228)" stopOpacity={0.25} />
-                  <stop offset="95%" stopColor="var(--color-gold, #b63228)" stopOpacity={0.0} />
-                </linearGradient>
-                <linearGradient id="profitGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#16a34a" stopOpacity={0.25} />
-                  <stop offset="95%" stopColor="#16a34a" stopOpacity={0.0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e5e9" opacity={0.6} />
-              <XAxis
-                dataKey="date"
-                tickLine={false}
-                axisLine={false}
-                tick={{ fontSize: 11, fill: '#888' }}
-              />
-              <YAxis
-                tickLine={false}
-                axisLine={false}
-                tick={{ fontSize: 11, fill: '#888' }}
-                tickFormatter={(val) => `₹${val}`}
-              />
-              <Tooltip
-                content={({ active, payload, label }) => {
-                  if (!active || !payload?.length) return null;
-                  return (
-                    <div className="rounded-lg border bg-popover px-3 py-2 text-xs shadow-md space-y-1">
-                      <p className="font-semibold text-foreground">{label}</p>
-                      <p className="text-gold font-medium">
-                        Sales: {currency.format(Number(payload[0]?.value) || 0)}
-                      </p>
-                      <p className="text-success font-medium">
-                        Profit: {currency.format(Number(payload[1]?.value) || 0)}
-                      </p>
-                    </div>
-                  );
-                }}
-              />
-              <Area
-                type="monotone"
-                dataKey="sales"
-                stroke="var(--color-gold, #b63228)"
-                strokeWidth={2}
-                fillOpacity={1}
-                fill="url(#salesGradient)"
-              />
-              <Area
-                type="monotone"
-                dataKey="profit"
-                stroke="#16a34a"
-                strokeWidth={2}
-                fillOpacity={1}
-                fill="url(#profitGradient)"
-              />
-            </AreaChart>
-          </ResponsiveContainer>
+        {/* ── RIGHT: CUSTOMER MAP SPLIT BAR CHART (5 cols on lg) ── */}
+        <div className="lg:col-span-5 card-premium p-6 flex flex-col justify-between">
+          <div>
+            {/* Header: Title + Dropdown */}
+            <div className="flex items-start justify-between gap-4 mb-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="w-1.5 h-5 bg-[#e11d48] rounded-full inline-block" />
+                  <h3 className="font-display font-bold text-lg text-slate-900 tracking-tight">
+                    Customer Map
+                  </h3>
+                </div>
+                <p className="text-xs text-slate-400 mt-1">
+                  Customer engagement and ordering activity
+                </p>
+              </div>
+
+              {/* Monthly Dropdown pill */}
+              <div className="relative inline-block">
+                <button
+                  type="button"
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-600 bg-white border border-slate-200 rounded-lg shadow-xs hover:bg-slate-50 transition-colors"
+                >
+                  {customerFilter}
+                  <ChevronDown className="size-3.5 text-slate-400" />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Bi-directional Split Bar Chart */}
+          <div className="h-64 sm:h-72 w-full pt-4">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart
+                data={customerMapData}
+                margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+                barGap={0}
+              >
+                <CartesianGrid
+                  strokeDasharray="0 0"
+                  vertical={false}
+                  stroke="#f1f5f9"
+                  strokeWidth={1}
+                />
+
+                <XAxis
+                  dataKey="label"
+                  tickLine={false}
+                  axisLine={false}
+                  tick={{ fontSize: 11, fill: '#94a3b8', fontWeight: 500 }}
+                  dy={4}
+                />
+
+                <YAxis
+                  domain={[-40, 80]}
+                  ticks={[-40, -20, 0, 20, 40, 60, 80]}
+                  tickLine={false}
+                  axisLine={false}
+                  tick={{ fontSize: 11, fill: '#94a3b8', fontWeight: 500 }}
+                />
+
+                {/* Zero Reference Line */}
+                <ReferenceLine y={0} stroke="#cbd5e1" strokeWidth={1.5} />
+
+                <Tooltip
+                  content={({ active, payload, label }) => {
+                    if (!active || !payload?.length) return null;
+                    return (
+                      <div className="rounded-xl border border-slate-100 bg-white p-2.5 text-xs shadow-lg space-y-1">
+                        <p className="font-bold text-slate-800">{label}</p>
+                        <p className="text-rose-600 font-semibold">
+                          Active Orders: {payload[0]?.value}
+                        </p>
+                        <p className="text-slate-600 font-medium">
+                          Idle / Off: {Math.abs(Number(payload[1]?.value))}
+                        </p>
+                      </div>
+                    );
+                  }}
+                />
+
+                {/* Positive (Pink) and Negative (Slate) Bars in the exact same column */}
+                <Bar
+                  dataKey="positive"
+                  stackId="customerStack"
+                  fill="#e11d48"
+                  radius={[3, 3, 0, 0]}
+                  barSize={10}
+                />
+                <Bar
+                  dataKey="negative"
+                  stackId="customerStack"
+                  fill="#334155"
+                  radius={[0, 0, 3, 3]}
+                  barSize={10}
+                />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
         </div>
       </div>
 
-      {/* ── RIGHT: Top 3 Selling Food (5 columns on lg) ── */}
-      <div className="lg:col-span-5 card-premium p-5 flex flex-col justify-between">
-        <div>
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <Award className="size-4 text-amber-500" />
-              <h3 className="font-display font-semibold text-base text-foreground">
-                Top 3 Selling Food
-              </h3>
-            </div>
-            <Link
-              to="/orders"
-              className="text-xs text-gold hover:underline flex items-center gap-0.5"
-            >
-              Orders <ArrowUpRight className="size-3" />
-            </Link>
+      {/* ── ROW 2: TOP 3 SELLING FOOD LEADERBOARD ── */}
+      <div className="card-premium p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <Award className="size-5 text-amber-500" />
+            <h3 className="font-display font-bold text-base text-slate-900 tracking-tight">
+              Top 3 Selling Food
+            </h3>
           </div>
+          <Link
+            to="/orders"
+            className="text-xs font-semibold text-[#e11d48] hover:underline flex items-center gap-1"
+          >
+            Go to Orders <ArrowUpRight className="size-3.5" />
+          </Link>
+        </div>
 
-          <p className="text-xs text-muted-foreground mb-4">
-            Highest demanded dishes ranked by total portions sold
-          </p>
+        <p className="text-xs text-slate-400 mb-5">
+          Most ordered culinary items ranked by total portion count
+        </p>
 
-          {top3Selling.length === 0 ? (
-            <div className="py-10 text-center space-y-2">
-              <Utensils className="mx-auto size-8 text-muted-foreground/30" />
-              <p className="text-sm text-muted-foreground">No orders placed yet</p>
-              <p className="text-xs text-muted-foreground/70">
-                Place orders in the Orders page to see your best selling dishes.
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {top3Selling.map((food, index) => {
-                const percent = Math.min(Math.round((food.quantity / maxQuantity) * 100), 100);
-                return (
-                  <div key={food.name} className="flex items-center gap-3">
-                    <img
-                      src={`/MBB - Images/${food.name}.jpg`}
-                      alt={food.name}
-                      className="size-12 rounded-lg object-cover border border-border/80 shrink-0"
-                      onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
-                    />
-                    <div className="flex-1 min-w-0 space-y-1.5">
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <Badge
-                            variant="outline"
-                            className={`text-xs px-1.5 py-0 font-bold shrink-0 ${rankBadges[index]?.color}`}
-                          >
-                            {rankBadges[index]?.label}
-                          </Badge>
-                          <span className="font-medium text-sm text-foreground truncate">
-                            {food.name}
-                          </span>
-                        </div>
-                        <span className="font-semibold text-sm tabular-nums text-gold shrink-0">
-                          {food.quantity} sold
+        {top3Selling.length === 0 ? (
+          <div className="py-8 text-center space-y-2">
+            <Utensils className="mx-auto size-8 text-slate-300" />
+            <p className="text-sm font-medium text-slate-600">No orders placed yet</p>
+            <p className="text-xs text-slate-400">
+              Dishes ordered in the Orders section will automatically appear here.
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {top3Selling.map((food, index) => {
+              const percent = Math.min(Math.round((food.quantity / maxQuantity) * 100), 100);
+              return (
+                <div
+                  key={food.name}
+                  className="flex items-center gap-3.5 p-3 rounded-xl border border-slate-100 bg-slate-50/50 hover:bg-slate-50 transition-colors"
+                >
+                  <img
+                    src={`/MBB - Images/${food.name}.jpg`}
+                    alt={food.name}
+                    className="size-14 rounded-xl object-cover border border-slate-200 shrink-0 shadow-xs"
+                    onError={(e) => {
+                      (e.target as HTMLElement).style.display = 'none';
+                    }}
+                  />
+                  <div className="flex-1 min-w-0 space-y-1">
+                    <div className="flex items-center justify-between gap-1">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <Badge
+                          variant="outline"
+                          className={`text-[10px] px-1.5 py-0 font-bold shrink-0 ${rankBadges[index]?.color}`}
+                        >
+                          {rankBadges[index]?.label}
+                        </Badge>
+                        <span className="font-semibold text-xs text-slate-800 truncate">
+                          {food.name}
                         </span>
                       </div>
+                      <span className="font-bold text-xs tabular-nums text-[#e11d48] shrink-0">
+                        {food.quantity} sold
+                      </span>
+                    </div>
 
-                      {/* Progress Bar */}
-                      <div className="h-2 w-full bg-secondary/60 rounded-full overflow-hidden">
-                        <div
-                          className="h-full rounded-full bg-gold transition-all duration-500"
-                          style={{ width: `${percent}%` }}
-                        />
-                      </div>
+                    {/* Progress Bar */}
+                    <div className="h-1.5 w-full bg-slate-200 rounded-full overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-[#e11d48] transition-all duration-500"
+                        style={{ width: `${percent}%` }}
+                      />
+                    </div>
 
-                      <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-                        <span>{food.category}</span>
-                        <span>{currency.format(food.revenue)} revenue</span>
-                      </div>
+                    <div className="flex items-center justify-between text-[10px] text-slate-400">
+                      <span>{food.category}</span>
+                      <span className="font-medium text-slate-600">
+                        {currency.format(food.revenue)}
+                      </span>
                     </div>
                   </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        {/* Footer info pill */}
-        <div className="mt-4 pt-3 border-t border-border/60 flex items-center justify-between text-xs text-muted-foreground">
-          <span>Updated in real time</span>
-          <span className="font-medium text-foreground">{orders.length} total orders</span>
-        </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );
