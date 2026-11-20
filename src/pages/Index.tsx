@@ -1,6 +1,7 @@
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { StatCard } from '@/components/dashboard/StatCard';
 import { LowStockAlert } from '@/components/dashboard/LowStockAlert';
+import { AnalyticsCharts } from '@/components/dashboard/AnalyticsCharts';
 import { Button } from '@/components/ui/button';
 import { useDashboardStats, useLowStockItems } from '@/hooks/api';
 import { Loader2, Package, ShoppingCart, TrendingUp, TriangleAlert } from 'lucide-react';
@@ -38,6 +39,7 @@ export default function Index() {
               variant={Number(data?.low_stock_count ?? 0) > 0 ? 'warning' : 'success'} />
             <StatCard title="Logged Purchases" value={Number(data?.purchase_count ?? 0)} icon={ShoppingCart} />
           </div>
+          <AnalyticsCharts />
           <LowStockAlert items={(lowStock.data ?? []).slice(0, 5)} />
         </>
       )}
