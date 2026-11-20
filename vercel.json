@@ -12,7 +12,7 @@
       "destination": "/api/dashboard?__dashboard_path=:path*"
     },
     {
-      "source": "/:page(login|signup|menu|inventory|purchases|profit|settings)",
+      "source": "/:page(login|signup|menu|inventory|purchases|orders|profit|settings)",
       "destination": "/index.html"
     },
     {

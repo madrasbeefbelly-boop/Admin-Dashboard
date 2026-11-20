@@ -1302,7 +1302,15 @@ app.delete('/api/staff/:id', async (req, res) => {
 app.get('/api/orders', async (req, res) => {
   try {
     const ordersResult = await pool.query(`
-      SELECT id, order_ref, customer_name, table_no, payment_method, total_amount, status, created_at
+      SELECT 
+        id, 
+        COALESCE(order_ref, order_number) as order_ref, 
+        COALESCE(customer_name, client_name) as customer_name, 
+        table_no, 
+        COALESCE(payment_method, 'Cash') as payment_method, 
+        COALESCE(total_amount, total_value, 0) as total_amount, 
+        status, 
+        created_at
       FROM orders
       ORDER BY created_at DESC
     `);
@@ -1312,7 +1320,17 @@ app.get('/api/orders', async (req, res) => {
     if (orders.length > 0) {
       const ids = orders.map((o) => o.id);
       const itemsResult = await pool.query(`
-        SELECT * FROM order_items WHERE order_id = ANY($1::uuid[])
+        SELECT 
+          id, 
+          order_id, 
+          menu_item_id, 
+          COALESCE(name, item_name) as name, 
+          category, 
+          COALESCE(unit_price, 0) as unit_price, 
+          COALESCE(quantity, 1) as quantity, 
+          COALESCE(line_total, total_price, 0) as line_total, 
+          created_at
+        FROM order_items WHERE order_id = ANY($1::uuid[])
       `, [ids]);
       const itemsByOrder = {};
       for (const item of itemsResult.rows) {
@@ -1347,11 +1365,14 @@ app.post('/api/orders', async (req, res) => {
       CREATE TABLE IF NOT EXISTS orders (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         business_id UUID NOT NULL,
-        order_ref VARCHAR(50) UNIQUE NOT NULL,
+        order_ref VARCHAR(50) UNIQUE,
+        order_number VARCHAR(50),
         customer_name VARCHAR(255),
+        client_name VARCHAR(255),
         table_no VARCHAR(50),
         payment_method VARCHAR(50) DEFAULT 'Cash',
         total_amount DECIMAL(12, 2) NOT NULL DEFAULT 0,
+        total_value DECIMAL(12, 2) DEFAULT 0,
         status VARCHAR(50) DEFAULT 'Completed',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
@@ -1362,39 +1383,45 @@ app.post('/api/orders', async (req, res) => {
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         order_id UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
         menu_item_id UUID,
-        name VARCHAR(255) NOT NULL,
+        name VARCHAR(255),
+        item_name VARCHAR(255),
         category VARCHAR(100),
         unit_price DECIMAL(10, 2) NOT NULL,
         quantity INT NOT NULL,
         line_total DECIMAL(12, 2) NOT NULL,
+        total_price DECIMAL(12, 2),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
 
     const orderRef = `ORD-${Date.now()}-${Math.random().toString(36).substr(2, 5).toUpperCase()}`;
     const itemsArray = items || [];
-    const computedTotal = total_amount ?? itemsArray.reduce((s, i) => s + i.unit_price * i.quantity, 0);
+    const computedTotal = total_amount ?? itemsArray.reduce((s, i) => s + (Number(i.unit_price) || 0) * (Number(i.quantity) || 1), 0);
 
     const orderResult = await pool.query(`
-      INSERT INTO orders (business_id, order_ref, customer_name, table_no, payment_method, total_amount, status)
-      VALUES ($1, $2, $3, $4, $5, $6, 'Completed')
-      RETURNING *
+      INSERT INTO orders (
+        business_id, order_ref, order_number, customer_name, client_name, table_no, payment_method, total_amount, total_value, status
+      )
+      VALUES ($1, $2, $2, $3, $3, $4, $5, $6, $6, 'Completed')
+      RETURNING id, order_ref, order_number, customer_name, table_no, payment_method, total_amount, status, created_at
     `, [businessId, orderRef, customer_name || null, table_no || null, payment_method || 'Cash', computedTotal]);
 
     const orderId = orderResult.rows[0].id;
 
     for (const item of itemsArray) {
       await pool.query(`
-        INSERT INTO order_items (order_id, menu_item_id, name, category, unit_price, quantity, line_total)
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        INSERT INTO order_items (
+          order_id, menu_item_id, name, item_name, category, unit_price, quantity, line_total, total_price
+        )
+        VALUES ($1, $2, $3, $3, $4, $5, $6, $7, $7)
       `, [
         orderId,
         item.menu_item_id || null,
         item.name,
         item.category || null,
-        item.unit_price,
-        item.quantity,
-        item.unit_price * item.quantity,
+        Number(item.unit_price) || 0,
+        Number(item.quantity) || 1,
+        (Number(item.unit_price) || 0) * (Number(item.quantity) || 1),
       ]);
     }
 
