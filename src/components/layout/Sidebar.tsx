@@ -6,6 +6,7 @@ import {
   Package, 
   ShoppingCart, 
   Calculator,
+  ClipboardList,
   Menu,
   ChevronLeft,
   ChevronRight,
@@ -23,6 +24,7 @@ const navigation = [
   { name: 'Menu & Costing', href: '/menu', icon: UtensilsCrossed },
   { name: 'Inventory', href: '/inventory', icon: Package },
   { name: 'Purchases', href: '/purchases', icon: ShoppingCart },
+  { name: 'New Order', href: '/orders', icon: ClipboardList },
   { name: 'Profit Calculator', href: '/profit', icon: Calculator },
   { name: 'Settings', href: '/settings', icon: Settings },
 ];

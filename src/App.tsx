@@ -9,6 +9,7 @@ import Index from "./pages/Index";
 import MenuPage from "./pages/MenuPage";
 import InventoryPage from "./pages/InventoryPage";
 import PurchasesPage from "./pages/PurchasesPage";
+import OrdersPage from "./pages/OrdersPage";
 import ProfitPage from "./pages/ProfitPage";
 import SettingsPage from "./pages/SettingsPage";
 import LoginPage from "./pages/LoginPage";
@@ -36,6 +37,7 @@ const App = () => (
             <Route path="/menu" element={<ProtectedRoute><MenuPage /></ProtectedRoute>} />
             <Route path="/inventory" element={<ProtectedRoute><InventoryPage /></ProtectedRoute>} />
             <Route path="/purchases" element={<ProtectedRoute><PurchasesPage /></ProtectedRoute>} />
+            <Route path="/orders" element={<ProtectedRoute><OrdersPage /></ProtectedRoute>} />
             <Route path="/profit" element={<ProtectedRoute><ProfitPage /></ProtectedRoute>} />
             <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
             

@@ -125,6 +125,21 @@ export const dashboardAPI = {
 };
 
 // ============================================================================
+// ORDERS API
+// ============================================================================
+
+export const ordersAPI = {
+  // Get all orders
+  getAll: () => api.get('/orders'),
+
+  // Create a new order
+  create: (data: any) => api.post('/orders', data),
+
+  // Delete an order
+  delete: (id: string) => api.delete(`/orders/${id}`),
+};
+
+// ============================================================================
 // NOTIFICATIONS API
 // ============================================================================
 

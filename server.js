@@ -1295,6 +1295,138 @@ app.delete('/api/staff/:id', async (req, res) => {
 });
 
 // ============================================================================
+// ORDERS ENDPOINTS
+// ============================================================================
+
+// GET all orders (most recent first)
+app.get('/api/orders', async (req, res) => {
+  try {
+    const ordersResult = await pool.query(`
+      SELECT id, order_ref, customer_name, table_no, payment_method, total_amount, status, created_at
+      FROM orders
+      ORDER BY created_at DESC
+    `);
+    const orders = ordersResult.rows;
+
+    // Attach items for each order
+    if (orders.length > 0) {
+      const ids = orders.map((o) => o.id);
+      const itemsResult = await pool.query(`
+        SELECT * FROM order_items WHERE order_id = ANY($1::uuid[])
+      `, [ids]);
+      const itemsByOrder = {};
+      for (const item of itemsResult.rows) {
+        if (!itemsByOrder[item.order_id]) itemsByOrder[item.order_id] = [];
+        itemsByOrder[item.order_id].push(item);
+      }
+      for (const order of orders) {
+        order.items = itemsByOrder[order.id] ?? [];
+      }
+    }
+
+    res.json({ success: true, data: orders });
+  } catch (error) {
+    console.error('Error fetching orders:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// CREATE order
+app.post('/api/orders', async (req, res) => {
+  const { customer_name, table_no, payment_method, items, total_amount } = req.body;
+
+  try {
+    const businessResult = await pool.query('SELECT id FROM businesses LIMIT 1');
+    const businessId = businessResult.rows[0]?.id;
+    if (!businessId) {
+      return res.status(400).json({ success: false, error: 'No business found' });
+    }
+
+    // Auto-create orders + order_items tables if they don't exist yet
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS orders (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        business_id UUID NOT NULL,
+        order_ref VARCHAR(50) UNIQUE NOT NULL,
+        customer_name VARCHAR(255),
+        table_no VARCHAR(50),
+        payment_method VARCHAR(50) DEFAULT 'Cash',
+        total_amount DECIMAL(12, 2) NOT NULL DEFAULT 0,
+        status VARCHAR(50) DEFAULT 'Completed',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS order_items (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        order_id UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+        menu_item_id UUID,
+        name VARCHAR(255) NOT NULL,
+        category VARCHAR(100),
+        unit_price DECIMAL(10, 2) NOT NULL,
+        quantity INT NOT NULL,
+        line_total DECIMAL(12, 2) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    const orderRef = `ORD-${Date.now()}-${Math.random().toString(36).substr(2, 5).toUpperCase()}`;
+    const itemsArray = items || [];
+    const computedTotal = total_amount ?? itemsArray.reduce((s, i) => s + i.unit_price * i.quantity, 0);
+
+    const orderResult = await pool.query(`
+      INSERT INTO orders (business_id, order_ref, customer_name, table_no, payment_method, total_amount, status)
+      VALUES ($1, $2, $3, $4, $5, $6, 'Completed')
+      RETURNING *
+    `, [businessId, orderRef, customer_name || null, table_no || null, payment_method || 'Cash', computedTotal]);
+
+    const orderId = orderResult.rows[0].id;
+
+    for (const item of itemsArray) {
+      await pool.query(`
+        INSERT INTO order_items (order_id, menu_item_id, name, category, unit_price, quantity, line_total)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
+      `, [
+        orderId,
+        item.menu_item_id || null,
+        item.name,
+        item.category || null,
+        item.unit_price,
+        item.quantity,
+        item.unit_price * item.quantity,
+      ]);
+    }
+
+    res.status(201).json({
+      success: true,
+      message: 'Order created successfully',
+      data: { ...orderResult.rows[0], order_ref: orderRef },
+    });
+  } catch (error) {
+    console.error('Error creating order:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// DELETE order
+app.delete('/api/orders/:id', async (req, res) => {
+  try {
+    const result = await pool.query(
+      'DELETE FROM orders WHERE id = $1 RETURNING id',
+      [req.params.id],
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Order not found' });
+    }
+    res.json({ success: true, message: 'Order deleted' });
+  } catch (error) {
+    console.error('Error deleting order:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ============================================================================
 // HEALTH CHECK
 // ============================================================================
 

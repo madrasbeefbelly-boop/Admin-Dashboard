@@ -4,7 +4,7 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import type { DashboardStats, LowStockItem, MenuCatalogItem } from '@/types';
+import type { DashboardStats, LowStockItem, MenuCatalogItem, Order } from '@/types';
 import {
   menuAPI,
   inventoryAPI,
@@ -13,6 +13,7 @@ import {
   userAPI,
   dashboardAPI,
   suppliersAPI,
+  ordersAPI,
 } from '@/lib/api';
 
 // ============================================================================
@@ -278,6 +279,42 @@ export const useDeleteSupplier = () => {
     mutationFn: (id) => suppliersAPI.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['suppliers'] });
+    },
+  });
+};
+
+// ============================================================================
+// ORDERS HOOKS
+// ============================================================================
+
+export const useOrders = () => {
+  return useQuery<Order[]>({
+    queryKey: ['orders'],
+    queryFn: async () => {
+      const response = await ordersAPI.getAll();
+      return response.data.data;
+    },
+  });
+};
+
+export const useCreateOrder = () => {
+  const queryClient = useQueryClient();
+  return useMutation<any, Error, any>({
+    mutationFn: (data) => ordersAPI.create(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboardStats'] });
+    },
+  });
+};
+
+export const useDeleteOrder = () => {
+  const queryClient = useQueryClient();
+  return useMutation<any, Error, string>({
+    mutationFn: (id) => ordersAPI.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboardStats'] });
     },
   });
 };

@@ -25,3 +25,23 @@ export interface DashboardStats {
   inventory_count: string | number;
   purchase_count: string | number;
 }
+
+export interface OrderItem {
+  menu_item_id: string;
+  name: string;
+  unit_price: number;
+  quantity: number;
+  category: string;
+}
+
+export interface Order {
+  id: string;
+  order_ref: string;
+  customer_name: string | null;
+  table_no: string | null;
+  payment_method: string;
+  total_amount: string | number;
+  status: string;
+  created_at: string;
+  items: OrderItem[];
+}
