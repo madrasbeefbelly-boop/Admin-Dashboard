@@ -14,7 +14,6 @@ import cookieParser from 'cookie-parser';
 import session from 'express-session';
 import passport from 'passport';
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
-import Stripe from 'stripe';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readFileSync } from 'node:fs';
@@ -22,8 +21,6 @@ import { readFileSync } from 'node:fs';
 // Load environment variables
 const hosted = process.env.VERCEL === '1';
 if (!hosted) dotenv.config();
-
-const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SECRET_KEY) : null;
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -151,6 +148,7 @@ const pool = new Pool({
   }),
   ...(hosted && { max: 4, connectionTimeoutMillis: 5000 }),
 });
+pool.on('error', error => console.error('Idle database connection closed:', error.code ?? error.message));
 
 // Test database connection
 if (!hosted) pool.query('SELECT NOW()', (err, res) => {
@@ -564,11 +562,13 @@ app.get('/api/inventory', async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT 
-        id, name, category, unit, current_stock, minimum_stock, 
-        cost_per_unit, supplier_id, supplier_name, expiry_date, is_active
-      FROM inventory_items
-      WHERE is_active = true
-      ORDER BY name
+        i.id, i.name, i.category, i.unit, i.current_stock, i.minimum_stock,
+        i.cost_per_unit, i.supplier_id, COALESCE(s.name, i.supplier_name) AS supplier_name,
+        i.expiry_date, i.is_active
+      FROM inventory_items i
+      LEFT JOIN suppliers s ON s.id = i.supplier_id AND s.business_id = i.business_id
+      WHERE i.is_active = true
+      ORDER BY i.name
     `);
     res.json({ success: true, data: result.rows });
   } catch (error) {
@@ -582,7 +582,7 @@ app.get('/api/inventory/low-stock', async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT 
-        id, name, category, current_stock, minimum_stock, 
+        id, name, category, unit, current_stock, minimum_stock,
         (minimum_stock - current_stock) as shortage, supplier_name
       FROM inventory_items
       WHERE is_active = true AND current_stock <= minimum_stock
@@ -599,8 +599,13 @@ app.get('/api/inventory/low-stock', async (req, res) => {
 app.post('/api/inventory', async (req, res) => {
   const { 
     name, category, unit, cost_per_unit, 
-    supplier_id, supplier_name, minimum_stock 
-  } = req.body;
+    supplier_id, supplier_name, minimum_stock
+  } = req.body ?? {};
+
+  if (supplier_id != null && (typeof supplier_id !== 'string' ||
+    !/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(supplier_id))) {
+    return res.status(400).json({ success: false, error: 'Select a valid supplier.' });
+  }
 
   try {
     // Get the business ID (for now, using the first/only business)
@@ -612,15 +617,22 @@ app.post('/api/inventory', async (req, res) => {
     }
 
     const result = await pool.query(`
-      INSERT INTO inventory_items 
+      INSERT INTO inventory_items
       (business_id, name, category, unit, current_stock, cost_per_unit, 
        supplier_id, supplier_name, minimum_stock, is_active)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, true)
+      SELECT $1, $2, $3, $4, 0, $5, s.id, COALESCE(s.name, $7), $8, true
+      FROM (SELECT 1) AS item
+      LEFT JOIN suppliers s ON s.id = $6 AND s.business_id = $1 AND s.is_active
+      WHERE $6::uuid IS NULL OR s.id IS NOT NULL
       RETURNING *
     `, [
-      businessId, name, category, unit, 0, cost_per_unit,
+      businessId, name, category, unit, cost_per_unit,
       supplier_id, supplier_name, minimum_stock
     ]);
+
+    if (!result.rowCount) {
+      return res.status(400).json({ success: false, error: 'Select an active supplier from Purchases.' });
+    }
 
     res.status(201).json({ 
       success: true, 
@@ -980,166 +992,6 @@ app.delete('/api/purchases/:id', async (req, res) => {
 });
 
 // ============================================================================
-// ORDERS ENDPOINTS
-// ============================================================================
-
-// GET all orders
-app.get('/api/orders', async (req, res) => {
-  try {
-    const result = await pool.query(`
-      SELECT 
-        id, order_number, client_name, client_type, event_date, event_type,
-        guest_count, total_value, advance_received, remaining_balance, 
-        status, created_at
-      FROM orders
-      ORDER BY event_date DESC
-    `);
-    res.json({ success: true, data: result.rows });
-  } catch (error) {
-    console.error('Error fetching orders:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// GET order items (for dashboard analytics)
-app.get('/api/order-items', async (req, res) => {
-  try {
-    const result = await pool.query(`
-      SELECT 
-        oi.id, oi.order_id, oi.menu_item_id, oi.item_name, 
-        oi.quantity, oi.unit_price, oi.total_price,
-        o.event_date, o.status
-      FROM order_items oi
-      LEFT JOIN orders o ON oi.order_id = o.id
-      ORDER BY o.event_date DESC
-    `);
-    res.json({ success: true, data: result.rows });
-  } catch (error) {
-    console.error('Error fetching order items:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// CREATE order
-app.post('/api/orders', async (req, res) => {
-  const { 
-    client_name, client_type, event_date, event_type, 
-    event_location, guest_count, price_per_head, items 
-  } = req.body;
-
-  try {
-    // Get the business ID (for now, using the first/only business)
-    const businessResult = await pool.query('SELECT id FROM businesses LIMIT 1');
-    const businessId = businessResult.rows[0]?.id;
-
-    if (!businessId) {
-      return res.status(400).json({ success: false, error: 'No business found' });
-    }
-
-    const totalValue = guest_count * price_per_head;
-
-    // Generate unique order number (timestamp + random)
-    const orderNumber = `ORD-${Date.now()}-${Math.random().toString(36).substr(2, 5).toUpperCase()}`;
-
-    // Create order
-    const orderResult = await pool.query(`
-      INSERT INTO orders 
-      (business_id, order_number, client_name, client_type, event_date, event_type, 
-       event_location, guest_count, price_per_head, total_value, remaining_balance, status)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'Inquiry')
-      RETURNING *
-    `, [
-      businessId, orderNumber, client_name, client_type, event_date, event_type,
-      event_location, guest_count, price_per_head, totalValue, totalValue
-    ]);
-
-    const orderId = orderResult.rows[0].id;
-
-    // Add items to order
-    if (items && items.length > 0) {
-      for (const item of items) {
-        await pool.query(`
-          INSERT INTO order_items 
-          (order_id, menu_item_id, item_name, quantity, unit_price, total_price)
-          VALUES ($1, $2, $3, $4, $5, $6)
-        `, [
-          orderId, item.menu_item_id, item.item_name,
-          item.quantity, item.unit_price, item.quantity * item.unit_price
-        ]);
-      }
-    }
-
-    res.status(201).json({ 
-      success: true, 
-      message: 'Order created successfully',
-      data: orderResult.rows[0]
-    });
-  } catch (error) {
-    console.error('Error creating order:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// UPDATE order
-app.put('/api/orders/:id', async (req, res) => {
-  const { status, advance_received } = req.body;
-
-  try {
-    // Get order details
-    const order = await pool.query(`SELECT total_value FROM orders WHERE id = $1`, [req.params.id]);
-
-    if (order.rows.length === 0) {
-      return res.status(404).json({ success: false, error: 'Order not found' });
-    }
-
-    const remainingBalance = order.rows[0].total_value - (advance_received || 0);
-
-    const result = await pool.query(`
-      UPDATE orders 
-      SET status = COALESCE($1, status),
-          advance_received = COALESCE($2, advance_received),
-          remaining_balance = $3,
-          updated_at = NOW()
-      WHERE id = $4
-      RETURNING *
-    `, [status, advance_received, remainingBalance, req.params.id]);
-
-    res.json({ 
-      success: true, 
-      message: 'Order updated successfully',
-      data: result.rows[0]
-    });
-  } catch (error) {
-    console.error('Error updating order:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// DELETE order
-app.delete('/api/orders/:id', async (req, res) => {
-  try {
-    const result = await pool.query(`
-      DELETE FROM orders 
-      WHERE id = $1
-      RETURNING *
-    `, [req.params.id]);
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ success: false, error: 'Order not found' });
-    }
-
-    res.json({ 
-      success: true, 
-      message: 'Order deleted successfully',
-      data: result.rows[0]
-    });
-  } catch (error) {
-    console.error('Error deleting order:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// ============================================================================
 // SEARCH ENDPOINT
 // ============================================================================
 
@@ -1148,16 +1000,11 @@ app.get('/api/search', async (req, res) => {
   const { q } = req.query;
 
   if (!q || q.length < 2) {
-    return res.json({ success: true, data: { orders: [], menuItems: [], inventory: [] } });
+    return res.json({ success: true, data: { menuItems: [], inventory: [] } });
   }
 
   try {
     const searchTerm = `%${q}%`;
-
-    const orders = await pool.query(`
-      SELECT id, order_number as name, 'order' as type FROM orders 
-      WHERE client_name ILIKE $1 OR order_number ILIKE $1 LIMIT 5
-    `, [searchTerm]);
 
     const menuItems = await pool.query(`
       SELECT id, name, 'menu' as type FROM menu_items 
@@ -1172,7 +1019,6 @@ app.get('/api/search', async (req, res) => {
     res.json({ 
       success: true, 
       data: {
-        orders: orders.rows,
         menuItems: menuItems.rows,
         inventory: inventory.rows
       }
@@ -1259,12 +1105,10 @@ app.get('/api/dashboard/stats', async (req, res) => {
   try {
     const stats = await pool.query(`
       SELECT 
-        (SELECT COUNT(*) FROM orders WHERE status IN ('Inquiry', 'Confirmed', 'In Progress')) as pending_orders,
-        (SELECT COUNT(DISTINCT DATE(event_date)) FROM orders WHERE DATE(event_date) >= CURRENT_DATE AND status != 'Closed') as upcoming_events,
         (SELECT COUNT(*) FROM inventory_items WHERE current_stock <= minimum_stock AND is_active = true) as low_stock_count,
         (SELECT SUM(current_stock * cost_per_unit) FROM inventory_items WHERE is_active = true) as inventory_value,
-        (SELECT SUM(total_value) FROM orders WHERE DATE_TRUNC('month', event_date) = DATE_TRUNC('month', CURRENT_DATE) AND status IN ('In Progress', 'Delivered')) as monthly_revenue,
-        (SELECT SUM(total_value) FROM orders WHERE status = 'Delivered') as total_sales
+        (SELECT COUNT(*) FROM inventory_items WHERE is_active = true) as inventory_count,
+        (SELECT COUNT(*) FROM purchases) as purchase_count
     `);
 
     res.json({ success: true, data: stats.rows[0] });
@@ -1463,362 +1307,6 @@ app.get('/health', (req, res) => {
 // ============================================================================
 
 // ============================================================================
-// STRIPE PAYMENT ENDPOINTS
-// ============================================================================
-
-// Create payment intent for order
-if (!stripe) {
-  app.use(['/api/payments', '/api/payment-methods', '/api/subscriptions'], (req, res, next) => {
-    if (req.baseUrl === '/api/payments' && req.path === '/config') return next();
-    res.status(503).json({ success: false, error: 'Payment processing is not configured.' });
-  });
-}
-
-app.post('/api/payments/create-intent', authenticateToken, async (req, res) => {
-  const { orderId, amount, currency = 'usd', description } = req.body;
-
-  try {
-    // Create or get Stripe customer
-    let stripeCustomerId;
-    const userResult = await pool.query(
-      'SELECT stripe_customer_id FROM users WHERE id = $1',
-      [req.user.id]
-    );
-
-    if (userResult.rows[0]?.stripe_customer_id) {
-      stripeCustomerId = userResult.rows[0].stripe_customer_id;
-    } else {
-      const customer = await stripe.customers.create({
-        email: req.user.email,
-        metadata: { userId: req.user.id }
-      });
-      stripeCustomerId = customer.id;
-
-      await pool.query(
-        'UPDATE users SET stripe_customer_id = $1 WHERE id = $2',
-        [stripeCustomerId, req.user.id]
-      );
-    }
-
-    // Create payment intent
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount: Math.round(amount * 100), // Convert to cents
-      currency,
-      customer: stripeCustomerId,
-      description: description || `Payment for Order ${orderId}`,
-      metadata: { orderId, userId: req.user.id }
-    });
-
-    // Save payment record
-    await pool.query(`
-      INSERT INTO payments (
-        order_id, user_id, stripe_payment_intent_id, stripe_customer_id,
-        amount, currency, status, description
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-    `, [orderId, req.user.id, paymentIntent.id, stripeCustomerId, amount, currency, 'pending', description]);
-
-    res.json({
-      success: true,
-      data: {
-        clientSecret: paymentIntent.client_secret,
-        paymentIntentId: paymentIntent.id
-      }
-    });
-  } catch (error) {
-    console.error('Error creating payment intent:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// Confirm payment
-app.post('/api/payments/confirm', authenticateToken, async (req, res) => {
-  const { paymentIntentId } = req.body;
-
-  try {
-    const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
-
-    await pool.query(
-      'UPDATE payments SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE stripe_payment_intent_id = $2',
-      [paymentIntent.status, paymentIntentId]
-    );
-
-    // If payment succeeded, update order
-    if (paymentIntent.status === 'succeeded') {
-      const payment = await pool.query(
-        'SELECT order_id, amount FROM payments WHERE stripe_payment_intent_id = $1',
-        [paymentIntentId]
-      );
-
-      if (payment.rows[0]?.order_id) {
-        await pool.query(
-          'UPDATE orders SET payment_received = payment_received + $1, balance = total_price - (payment_received + $2) WHERE id = $3',
-          [payment.rows[0].amount, payment.rows[0].amount, payment.rows[0].order_id]
-        );
-      }
-    }
-
-    res.json({ success: true, data: paymentIntent });
-  } catch (error) {
-    console.error('Error confirming payment:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// Get payment history
-app.get('/api/payments', authenticateToken, async (req, res) => {
-  try {
-    const result = await pool.query(`
-      SELECT p.*, o.event_type, o.client_name, o.event_date
-      FROM payments p
-      LEFT JOIN orders o ON p.order_id = o.id
-      WHERE p.user_id = $1
-      ORDER BY p.created_at DESC
-    `, [req.user.id]);
-
-    res.json({ success: true, data: result.rows });
-  } catch (error) {
-    console.error('Error fetching payments:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// Create refund
-app.post('/api/payments/refund', authenticateToken, async (req, res) => {
-  const { paymentId, amount, reason } = req.body;
-
-  try {
-    const paymentResult = await pool.query(
-      'SELECT stripe_payment_intent_id, amount as total_amount FROM payments WHERE id = $1',
-      [paymentId]
-    );
-
-    if (paymentResult.rows.length === 0) {
-      return res.status(404).json({ success: false, error: 'Payment not found' });
-    }
-
-    const refund = await stripe.refunds.create({
-      payment_intent: paymentResult.rows[0].stripe_payment_intent_id,
-      amount: amount ? Math.round(amount * 100) : undefined,
-      reason: reason || 'requested_by_customer'
-    });
-
-    await pool.query(`
-      INSERT INTO refunds (payment_id, stripe_refund_id, amount, reason, status, created_by)
-      VALUES ($1, $2, $3, $4, $5, $6)
-    `, [paymentId, refund.id, amount || paymentResult.rows[0].total_amount, reason, refund.status, req.user.id]);
-
-    res.json({ success: true, data: refund });
-  } catch (error) {
-    console.error('Error creating refund:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// Save payment method
-app.post('/api/payment-methods/save', authenticateToken, async (req, res) => {
-  const { paymentMethodId } = req.body;
-
-  try {
-    const userResult = await pool.query(
-      'SELECT stripe_customer_id FROM users WHERE id = $1',
-      [req.user.id]
-    );
-
-    const stripeCustomerId = userResult.rows[0]?.stripe_customer_id;
-    if (!stripeCustomerId) {
-      return res.status(400).json({ success: false, error: 'No Stripe customer found' });
-    }
-
-    const paymentMethod = await stripe.paymentMethods.attach(paymentMethodId, {
-      customer: stripeCustomerId
-    });
-
-    await stripe.customers.update(stripeCustomerId, {
-      invoice_settings: { default_payment_method: paymentMethodId }
-    });
-
-    await pool.query(`
-      INSERT INTO payment_methods (
-        user_id, stripe_payment_method_id, stripe_customer_id, type,
-        card_brand, card_last4, card_exp_month, card_exp_year, is_default
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true)
-      ON CONFLICT (stripe_payment_method_id) DO UPDATE SET is_default = true
-    `, [
-      req.user.id,
-      paymentMethod.id,
-      stripeCustomerId,
-      paymentMethod.type,
-      paymentMethod.card?.brand,
-      paymentMethod.card?.last4,
-      paymentMethod.card?.exp_month,
-      paymentMethod.card?.exp_year
-    ]);
-
-    res.json({ success: true, data: paymentMethod });
-  } catch (error) {
-    console.error('Error saving payment method:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// Get saved payment methods
-app.get('/api/payment-methods', authenticateToken, async (req, res) => {
-  try {
-    const result = await pool.query(
-      'SELECT * FROM payment_methods WHERE user_id = $1 ORDER BY is_default DESC, created_at DESC',
-      [req.user.id]
-    );
-
-    res.json({ success: true, data: result.rows });
-  } catch (error) {
-    console.error('Error fetching payment methods:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// Set default payment method
-app.post('/api/payment-methods/:id/set-default', authenticateToken, async (req, res) => {
-  const { id } = req.params;
-
-  try {
-    // First, unset all default payment methods for this user
-    await pool.query(
-      'UPDATE payment_methods SET is_default = false WHERE user_id = $1',
-      [req.user.id]
-    );
-
-    // Then set the selected one as default
-    const result = await pool.query(
-      'UPDATE payment_methods SET is_default = true WHERE id = $1 AND user_id = $2 RETURNING *',
-      [id, req.user.id]
-    );
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ success: false, error: 'Payment method not found' });
-    }
-
-    res.json({ success: true, data: result.rows[0] });
-  } catch (error) {
-    console.error('Error setting default payment method:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// Delete payment method
-app.delete('/api/payment-methods/:id', authenticateToken, async (req, res) => {
-  const { id } = req.params;
-
-  try {
-    const methodResult = await pool.query(
-      'SELECT stripe_payment_method_id FROM payment_methods WHERE id = $1 AND user_id = $2',
-      [id, req.user.id]
-    );
-
-    if (methodResult.rows.length === 0) {
-      return res.status(404).json({ success: false, error: 'Payment method not found' });
-    }
-
-    // Detach from Stripe
-    try {
-      await stripe.paymentMethods.detach(methodResult.rows[0].stripe_payment_method_id);
-    } catch (stripeError) {
-      console.error('Stripe detach error:', stripeError);
-      // Continue even if Stripe fails - remove from our database
-    }
-
-    // Delete from database
-    await pool.query(
-      'DELETE FROM payment_methods WHERE id = $1 AND user_id = $2',
-      [id, req.user.id]
-    );
-
-    res.json({ success: true });
-  } catch (error) {
-    console.error('Error deleting payment method:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// Create subscription
-app.post('/api/subscriptions/create', authenticateToken, async (req, res) => {
-  const { planName, planPrice, billingInterval = 'month' } = req.body;
-
-  try {
-    const userResult = await pool.query(
-      'SELECT stripe_customer_id FROM users WHERE id = $1',
-      [req.user.id]
-    );
-
-    let stripeCustomerId = userResult.rows[0]?.stripe_customer_id;
-
-    if (!stripeCustomerId) {
-      const customer = await stripe.customers.create({
-        email: req.user.email,
-        metadata: { userId: req.user.id }
-      });
-      stripeCustomerId = customer.id;
-
-      await pool.query(
-        'UPDATE users SET stripe_customer_id = $1 WHERE id = $2',
-        [stripeCustomerId, req.user.id]
-      );
-    }
-
-    // Create price
-    const price = await stripe.prices.create({
-      unit_amount: Math.round(planPrice * 100),
-      currency: 'usd',
-      recurring: { interval: billingInterval },
-      product_data: { name: planName }
-    });
-
-    // Create subscription
-    const subscription = await stripe.subscriptions.create({
-      customer: stripeCustomerId,
-      items: [{ price: price.id }],
-      payment_behavior: 'default_incomplete',
-      expand: ['latest_invoice.payment_intent']
-    });
-
-    await pool.query(`
-      INSERT INTO subscriptions (
-        user_id, stripe_subscription_id, stripe_customer_id, plan_name,
-        plan_price, billing_interval, status, current_period_start, current_period_end
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-    `, [
-      req.user.id,
-      subscription.id,
-      stripeCustomerId,
-      planName,
-      planPrice,
-      billingInterval,
-      subscription.status,
-      new Date(subscription.current_period_start * 1000),
-      new Date(subscription.current_period_end * 1000)
-    ]);
-
-    res.json({
-      success: true,
-      data: {
-        subscriptionId: subscription.id,
-        clientSecret: subscription.latest_invoice.payment_intent.client_secret
-      }
-    });
-  } catch (error) {
-    console.error('Error creating subscription:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// Get Stripe publishable key
-app.get('/api/payments/config', (req, res) => {
-  res.json({
-    success: true,
-    publishableKey: process.env.STRIPE_PUBLISHABLE_KEY
-  });
-});
-
-// ============================================================================
 // NOTIFICATIONS ENDPOINTS
 // ============================================================================
 
@@ -1908,9 +1396,6 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     console.log(`   PUT    /api/inventory/:id/stock`);
     console.log(`   GET    /api/purchases`);
     console.log(`   POST   /api/purchases`);
-    console.log(`   GET    /api/orders`);
-    console.log(`   POST   /api/orders`);
-    console.log(`   PUT    /api/orders/:id`);
     console.log(`   GET    /api/search?q=query`);
     console.log(`   GET    /api/profile`);
     console.log(`   PUT    /api/profile`);

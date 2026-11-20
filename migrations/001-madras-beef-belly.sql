@@ -17,16 +17,22 @@ SET name = 'Madras Beef Belly',
 WHERE id = '550e8400-e29b-41d4-a716-446655440000'
   AND name = 'Mommy''s Kitchen';
 
-UPDATE menu_items
-SET deleted_at = CURRENT_TIMESTAMP
-WHERE business_id = '550e8400-e29b-41d4-a716-446655440000'
-  AND deleted_at IS NULL
-  AND (id, name, cost_per_serving, selling_price) IN (
-    ('850e8400-e29b-41d4-a716-446655440001'::uuid, 'Chicken Biryani', 280, 550),
-    ('850e8400-e29b-41d4-a716-446655440002'::uuid, 'Seekh Kebab', 200, 450),
-    ('850e8400-e29b-41d4-a716-446655440003'::uuid, 'Mutton Korma', 420, 850)
-  )
-  AND NOT EXISTS (SELECT 1 FROM order_items WHERE menu_item_id = menu_items.id);
+DO $$
+BEGIN
+  IF to_regclass('public.order_items') IS NOT NULL THEN
+    UPDATE menu_items
+    SET deleted_at = CURRENT_TIMESTAMP
+    WHERE business_id = '550e8400-e29b-41d4-a716-446655440000'
+      AND deleted_at IS NULL
+      AND (id, name, cost_per_serving, selling_price) IN (
+        ('850e8400-e29b-41d4-a716-446655440001'::uuid, 'Chicken Biryani', 280, 550),
+        ('850e8400-e29b-41d4-a716-446655440002'::uuid, 'Seekh Kebab', 200, 450),
+        ('850e8400-e29b-41d4-a716-446655440003'::uuid, 'Mutton Korma', 420, 850)
+      )
+      AND NOT EXISTS (SELECT 1 FROM order_items WHERE menu_item_id = menu_items.id);
+  END IF;
+END;
+$$;
 
 WITH poster_menu(category, name) AS (
   VALUES

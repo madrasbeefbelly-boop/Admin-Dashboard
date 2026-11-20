@@ -21,8 +21,6 @@ export default function SettingsPage() {
   });
   const [notifications, setNotifications] = useState({
     lowStock: true,
-    newOrders: true,
-    paymentReminders: false,
   });
 
   // API hooks
@@ -189,27 +187,7 @@ export default function SettingsPage() {
               />
             </div>
             <Separator />
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="font-medium text-foreground">New Order Notifications</p>
-                <p className="text-sm text-muted-foreground">Alert when a new inquiry is received</p>
-              </div>
-              <Switch
-                checked={notifications.newOrders}
-                onCheckedChange={(checked) => setNotifications({ ...notifications, newOrders: checked })}
-              />
-            </div>
             <Separator />
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="font-medium text-foreground">Payment Reminders</p>
-                <p className="text-sm text-muted-foreground">Remind clients about pending payments</p>
-              </div>
-              <Switch
-                checked={notifications.paymentReminders}
-                onCheckedChange={(checked) => setNotifications({ ...notifications, paymentReminders: checked })}
-              />
-            </div>
           </div>
         </div>
 

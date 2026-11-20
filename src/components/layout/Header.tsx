@@ -49,14 +49,7 @@ export function Header({ title, subtitle, hideMobileSubtitle }: HeaderProps) {
       markAsRead(notification.id);
     }
 
-    // Navigate based on type
-    if (notification.reference_type === 'Order' && notification.reference_id) {
-      navigate(`/orders/${notification.reference_id}`);
-    } else if (notification.reference_type === 'Inventory' && notification.reference_id) {
-      navigate('/inventory'); // Or specific item if route exists
-    } else if (notification.type === 'Alert') {
-      // Go to where alerts might be relevant, maybe dashboard or inventory
-    }
+    if (notification.reference_type === 'Inventory') navigate('/inventory');
   };
 
   return (
@@ -84,7 +77,7 @@ export function Header({ title, subtitle, hideMobileSubtitle }: HeaderProps) {
           <div className="relative hidden md:block">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
-              placeholder="Search orders, menu..."
+              placeholder="Search menu and inventory…"
               value={searchQuery}
               onChange={(e) => {
                 setSearchQuery(e.target.value);

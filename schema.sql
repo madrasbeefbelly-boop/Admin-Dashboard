@@ -66,7 +66,6 @@ CREATE TABLE clients (
   address TEXT,
   city VARCHAR(100),
   preferred_cuisine VARCHAR(100),
-  total_orders INT DEFAULT 0,
   total_spent DECIMAL(12, 2) DEFAULT 0,
   is_active BOOLEAN DEFAULT true,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -182,58 +181,6 @@ CREATE INDEX idx_menu_item_ingredients_menu_item_id ON menu_item_ingredients(men
 CREATE INDEX idx_menu_item_ingredients_inventory_item_id ON menu_item_ingredients(inventory_item_id);
 
 -- ============================================================================
--- ORDERS TABLE (Catering orders)
--- ============================================================================
-CREATE TABLE orders (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  business_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
-  order_number VARCHAR(50) UNIQUE NOT NULL,
-  client_id UUID REFERENCES clients(id),
-  client_name VARCHAR(255) NOT NULL,
-  client_type VARCHAR(50) NOT NULL,
-  event_date DATE NOT NULL,
-  event_type VARCHAR(100),
-  event_location TEXT,
-  guest_count INT NOT NULL,
-  price_per_head DECIMAL(10, 2) NOT NULL,
-  total_value DECIMAL(12, 2) NOT NULL,
-  status VARCHAR(50) NOT NULL DEFAULT 'Inquiry',
-  advance_received DECIMAL(12, 2) DEFAULT 0,
-  remaining_balance DECIMAL(12, 2) NOT NULL,
-  notes TEXT,
-  created_by UUID REFERENCES users(id),
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  delivered_at TIMESTAMP,
-  paid_at TIMESTAMP
-);
-
-CREATE INDEX idx_orders_business_id ON orders(business_id);
-CREATE INDEX idx_orders_client_id ON orders(client_id);
-CREATE INDEX idx_orders_status ON orders(status);
-CREATE INDEX idx_orders_event_date ON orders(event_date);
-CREATE INDEX idx_orders_order_number ON orders(order_number);
-
--- ============================================================================
--- ORDER_ITEMS TABLE (Menu items per order)
--- ============================================================================
-CREATE TABLE order_items (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  order_id UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
-  menu_item_id UUID REFERENCES menu_items(id),
-  item_name VARCHAR(255) NOT NULL,
-  quantity INT NOT NULL,
-  unit_price DECIMAL(10, 2) NOT NULL,
-  cost_per_unit DECIMAL(10, 2),
-  total_price DECIMAL(12, 2) NOT NULL,
-  notes TEXT,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE INDEX idx_order_items_order_id ON order_items(order_id);
-CREATE INDEX idx_order_items_menu_item_id ON order_items(menu_item_id);
-
--- ============================================================================
 -- PURCHASES TABLE (Purchase orders)
 -- ============================================================================
 CREATE TABLE purchases (
@@ -253,7 +200,6 @@ CREATE TABLE purchases (
   amount_paid DECIMAL(12, 2) DEFAULT 0,
   status VARCHAR(50) DEFAULT 'Ordered',
   notes TEXT,
-  linked_order_id UUID REFERENCES orders(id),
   created_by UUID REFERENCES users(id),
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -285,29 +231,6 @@ CREATE TABLE purchase_items (
 
 CREATE INDEX idx_purchase_items_purchase_id ON purchase_items(purchase_id);
 CREATE INDEX idx_purchase_items_inventory_item_id ON purchase_items(inventory_item_id);
-
--- ============================================================================
--- PAYMENTS TABLE (Payment tracking)
--- ============================================================================
-CREATE TABLE payments (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  business_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
-  order_id UUID REFERENCES orders(id) ON DELETE CASCADE,
-  purchase_id UUID REFERENCES purchases(id) ON DELETE CASCADE,
-  client_id UUID REFERENCES clients(id),
-  amount DECIMAL(12, 2) NOT NULL,
-  payment_method VARCHAR(50),
-  reference_number VARCHAR(100),
-  notes TEXT,
-  recorded_by UUID REFERENCES users(id),
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE INDEX idx_payments_business_id ON payments(business_id);
-CREATE INDEX idx_payments_order_id ON payments(order_id);
-CREATE INDEX idx_payments_client_id ON payments(client_id);
-CREATE INDEX idx_payments_created_at ON payments(created_at);
 
 -- ============================================================================
 -- STOCK_MOVEMENTS TABLE (Audit trail)
@@ -457,20 +380,6 @@ BEFORE INSERT OR UPDATE ON menu_items
 FOR EACH ROW
 EXECUTE FUNCTION calculate_margin_percent();
 
--- Update order remaining balance
-CREATE OR REPLACE FUNCTION update_order_balance()
-RETURNS TRIGGER AS $$
-BEGIN
-  NEW.remaining_balance := NEW.total_value - NEW.advance_received;
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE TRIGGER trigger_update_order_balance
-BEFORE INSERT OR UPDATE ON orders
-FOR EACH ROW
-EXECUTE FUNCTION update_order_balance();
-
 -- Update purchase final amount
 CREATE OR REPLACE FUNCTION update_purchase_final_amount()
 RETURNS TRIGGER AS $$
@@ -504,8 +413,8 @@ INSERT INTO users (id, email, password_hash, first_name, last_name, phone, role,
 -- Insert roles for business
 INSERT INTO roles (id, business_id, name, description, is_system_role) VALUES
 ('560e8400-e29b-41d4-a716-446655440001', '550e8400-e29b-41d4-a716-446655440000', 'Super Admin', 'Full system access and business configuration', true),
-('560e8400-e29b-41d4-a716-446655440002', '550e8400-e29b-41d4-a716-446655440000', 'Manager', 'Can manage menu, orders, and inventory', true),
-('560e8400-e29b-41d4-a716-446655440003', '550e8400-e29b-41d4-a716-446655440000', 'Staff', 'Can view and update menu and orders', true),
+('560e8400-e29b-41d4-a716-446655440002', '550e8400-e29b-41d4-a716-446655440000', 'Manager', 'Can manage menu and inventory', true),
+('560e8400-e29b-41d4-a716-446655440003', '550e8400-e29b-41d4-a716-446655440000', 'Staff', 'Can view and update menu and inventory', true),
 ('560e8400-e29b-41d4-a716-446655440004', '550e8400-e29b-41d4-a716-446655440000', 'Viewer', 'Read-only access to reports and analytics', true);
 
 -- Insert permissions for Super Admin role
@@ -514,7 +423,6 @@ INSERT INTO role_permissions (role_id, permission) VALUES
 ('560e8400-e29b-41d4-a716-446655440001', 'manage_roles'),
 ('560e8400-e29b-41d4-a716-446655440001', 'manage_menu'),
 ('560e8400-e29b-41d4-a716-446655440001', 'manage_inventory'),
-('560e8400-e29b-41d4-a716-446655440001', 'manage_orders'),
 ('560e8400-e29b-41d4-a716-446655440001', 'manage_purchases'),
 ('560e8400-e29b-41d4-a716-446655440001', 'view_reports'),
 ('560e8400-e29b-41d4-a716-446655440001', 'manage_settings'),
@@ -525,7 +433,6 @@ INSERT INTO role_permissions (role_id, permission) VALUES
 INSERT INTO role_permissions (role_id, permission) VALUES
 ('560e8400-e29b-41d4-a716-446655440002', 'manage_menu'),
 ('560e8400-e29b-41d4-a716-446655440002', 'manage_inventory'),
-('560e8400-e29b-41d4-a716-446655440002', 'manage_orders'),
 ('560e8400-e29b-41d4-a716-446655440002', 'manage_purchases'),
 ('560e8400-e29b-41d4-a716-446655440002', 'view_reports'),
 ('560e8400-e29b-41d4-a716-446655440002', 'manage_clients'),
@@ -534,7 +441,6 @@ INSERT INTO role_permissions (role_id, permission) VALUES
 -- Insert permissions for Staff role
 INSERT INTO role_permissions (role_id, permission) VALUES
 ('560e8400-e29b-41d4-a716-446655440003', 'manage_menu'),
-('560e8400-e29b-41d4-a716-446655440003', 'manage_orders'),
 ('560e8400-e29b-41d4-a716-446655440003', 'manage_inventory'),
 ('560e8400-e29b-41d4-a716-446655440003', 'view_reports');
 

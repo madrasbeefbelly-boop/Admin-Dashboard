@@ -4,6 +4,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Link } from 'react-router-dom';
 import {
   Table,
   TableBody,
@@ -21,7 +23,7 @@ import {
 } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import { Plus, Search, Package, AlertTriangle, TrendingUp, Trash2, Loader2 } from 'lucide-react';
-import { useInventory, useLowStockItems, useCreateInventoryItem, useDeleteInventoryItem } from '@/hooks/api';
+import { useInventory, useLowStockItems, useCreateInventoryItem, useDeleteInventoryItem, useSuppliers } from '@/hooks/api';
 import { toast } from 'sonner';
 
 export default function InventoryPage() {
@@ -32,13 +34,15 @@ export default function InventoryPage() {
     category: 'Vegetables',
     unit: 'kg',
     cost_per_unit: '',
-    supplier_name: '',
+    supplier_id: '',
     minimum_stock: '',
   });
 
   // API hooks
   const { data: inventory = [], isLoading, error, refetch } = useInventory();
   const { data: lowStockItems = [] } = useLowStockItems();
+  const { data: suppliers = [], isPending: suppliersLoading, isError: suppliersError, refetch: refetchSuppliers } = useSuppliers();
+  const supplierSelected = suppliers.some(supplier => supplier.id === formData.supplier_id);
   const createItem = useCreateInventoryItem();
   const deleteItem = useDeleteInventoryItem();
 
@@ -53,7 +57,7 @@ export default function InventoryPage() {
   const totalItems = inventory.length;
 
   const handleAddItem = async () => {
-    if (!formData.name || !formData.cost_per_unit || !formData.supplier_name) {
+    if (!formData.name || !formData.cost_per_unit || !supplierSelected) {
       toast.error('Please fill in all required fields');
       return;
     }
@@ -64,7 +68,7 @@ export default function InventoryPage() {
         category: formData.category,
         unit: formData.unit,
         cost_per_unit: parseFloat(formData.cost_per_unit),
-        supplier_name: formData.supplier_name,
+        supplier_id: formData.supplier_id,
         minimum_stock: formData.minimum_stock ? parseFloat(formData.minimum_stock) : 5,
       });
       toast.success('Item added successfully!');
@@ -74,7 +78,7 @@ export default function InventoryPage() {
         category: 'Vegetables',
         unit: 'kg',
         cost_per_unit: '',
-        supplier_name: '',
+        supplier_id: '',
         minimum_stock: '',
       });
     } catch (error) {
@@ -219,12 +223,30 @@ export default function InventoryPage() {
               />
             </div>
             <div>
-              <label className="text-sm font-medium">Supplier Name *</label>
-              <Input
-                placeholder="e.g., Local Supplier"
-                value={formData.supplier_name}
-                onChange={(e) => setFormData({ ...formData, supplier_name: e.target.value })}
-              />
+              <label htmlFor="inventory-supplier" className="text-sm font-medium">Supplier Name *</label>
+              <Select
+                value={supplierSelected ? formData.supplier_id : ''}
+                onValueChange={(supplier_id) => setFormData({ ...formData, supplier_id })}
+                disabled={suppliersLoading || suppliersError || suppliers.length === 0}
+              >
+                <SelectTrigger id="inventory-supplier" aria-required="true">
+                  <SelectValue placeholder={suppliersLoading ? 'Loading suppliers…' : 'Select a supplier'} />
+                </SelectTrigger>
+                <SelectContent>
+                  {suppliers.map(supplier => (
+                    <SelectItem key={supplier.id} value={supplier.id}>{supplier.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {suppliersError ? (
+                <Button variant="link" className="h-auto px-0 py-1" onClick={() => refetchSuppliers()}>
+                  Could not load suppliers. Try again.
+                </Button>
+              ) : !suppliersLoading && suppliers.length === 0 && (
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Add a supplier in <Link to="/purchases" className="text-gold underline">Purchases</Link> first.
+                </p>
+              )}
             </div>
             <div>
               <label className="text-sm font-medium">Minimum Stock</label>
@@ -243,7 +265,7 @@ export default function InventoryPage() {
             <Button
               className="bg-gold hover:bg-gold-light"
               onClick={handleAddItem}
-              disabled={createItem.isPending}
+              disabled={createItem.isPending || !supplierSelected}
             >
               {createItem.isPending ? (
                 <>
@@ -279,7 +301,7 @@ export default function InventoryPage() {
             <TableBody role="rowgroup">
               {filteredItems.map((item) => {
                 const stockPercentage = (item.current_stock / (item.minimum_stock || 1)) * 100;
-                const isLowStock = item.current_stock <= (item.minimum_stock || 0);
+                const isLowStock = Number(item.current_stock) <= Number(item.minimum_stock ?? 0);
 
                 return (
                   <TableRow role="row" key={item.id} className="border-border hover:bg-secondary/50">

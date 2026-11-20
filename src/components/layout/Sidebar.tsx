@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { 
   LayoutDashboard, 
-  ClipboardList, 
   UtensilsCrossed, 
   Package, 
   ShoppingCart, 
@@ -11,7 +10,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Settings,
-  CreditCard
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useProfile } from '@/hooks/api';
@@ -22,12 +20,10 @@ import { useIsMobile } from '@/hooks/use-mobile';
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
-  { name: 'Orders', href: '/orders', icon: ClipboardList },
   { name: 'Menu & Costing', href: '/menu', icon: UtensilsCrossed },
   { name: 'Inventory', href: '/inventory', icon: Package },
   { name: 'Purchases', href: '/purchases', icon: ShoppingCart },
   { name: 'Profit Calculator', href: '/profit', icon: Calculator },
-  { name: 'Payments', href: '/payments', icon: CreditCard },
   { name: 'Settings', href: '/settings', icon: Settings },
 ];
 

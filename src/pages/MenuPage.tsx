@@ -183,7 +183,7 @@ export default function MenuPage() {
               <UtensilsCrossed className="w-5 h-5 text-info" />
             </div>
             <div>
-              <p className="text-sm text-muted-foreground">Ready to Order</p>
+              <p className="text-sm text-muted-foreground">Priced Dishes</p>
               <p className="font-display text-2xl font-semibold">{activeItems}</p>
             </div>
           </div>
@@ -226,7 +226,7 @@ export default function MenuPage() {
         <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editing ? 'Edit dish' : 'Add dish'}</DialogTitle>
-            <DialogDescription>Set a selling price to make this dish available for orders.</DialogDescription>
+            <DialogDescription>Set your selling price and cost to calculate the dish margin.</DialogDescription>
           </DialogHeader>
           <form id="dish-form" onSubmit={saveDish} className="space-y-4">
             <div>

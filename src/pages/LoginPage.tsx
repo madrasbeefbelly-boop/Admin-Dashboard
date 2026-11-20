@@ -64,7 +64,7 @@ const LoginPage = () => {
   };
 
   return (
-    <AuthLayout title="Sign in" description="Access your orders, menu and inventory.">
+    <AuthLayout title="Sign in" description="Access your menu, inventory and purchases.">
       <form onSubmit={handleSubmit} className="space-y-4">
         {error && (
           <Alert variant="destructive">

@@ -9,16 +9,15 @@
 
 > **Stop Spreadsheets. Start Managing.**
 > 
-> Complete restaurant & catering management platform. Real-time order tracking, inventory control, profit analysis, and event management. Open source, free, and production-ready.
+> Madras Beef Belly’s dashboard for menu costing, inventory, suppliers, and purchases.
 
 ## Why Restaurant Inventory Manager Dashboard?
 
 - **100+ Features** - Complete kitchen & catering management suite
-- **Real-time Updates** - Instant inventory & order tracking
+- **Real-time Updates** - Inventory and purchase tracking
 - **Open Source** - MIT licensed, community-driven
 - **Production Ready** - Deploy in minutes
-- **Flexible Data Layer** - Run frontend-only (mock data) or full-stack with PostgreSQL + backend API
-- **Built for Scale** - Handle 1000+ orders/month
+- **Flexible Data Layer** - PostgreSQL and Express for dashboard data
 
 ---
 
@@ -131,11 +130,11 @@ pnpm install && pnpm dev
 
 - **Catering Companies** - Manage 100+ simultaneous events with custom menus
 - **Restaurant Chains** - Track inventory across multiple locations
-- **Cloud Kitchens** - Real-time order processing and stock management
+- **Cloud Kitchens** - Inventory and purchase management
 - **Wedding Catering** - Per-head pricing and guest count tracking
 - **Corporate Canteens** - Employee meal planning and inventory
 - **Food Startups** - Affordable alternative to $500+/month solutions
-- **Personal Chefs** - Client order and menu management
+- **Personal Chefs** - Menu costing and ingredient management
 
 ---
 
@@ -143,7 +142,6 @@ pnpm install && pnpm dev
 
 | Feature | Restaurant Inventory Manager | Traditional Software | Excel Sheets |
 |---------|------------------------------|----------------------|--------------|
-| Order Management | ✅ Real-time | ✅ Yes | ❌ Manual |
 | Inventory Tracking | ✅ Automated | ✅ Yes | ❌ Manual |
 | Profit Analysis | ✅ Automatic | ✅ Yes | ❌ Calculate yourself |
 | Cost Per Serving | ✅ Auto-calculated | ✅ Yes | ❌ Manual |
@@ -157,10 +155,10 @@ pnpm install && pnpm dev
 
 ## Overview
 
-Restaurant Inventory Manager Dashboard is an enterprise-grade platform built with React & TypeScript. It provides real-time insights into your catering and kitchen operations, from order management to inventory tracking and profit analysis.
+Restaurant Inventory Manager Dashboard is an enterprise-grade platform built with React & TypeScript. It provides real-time insights into your catering and kitchen operations, from supplier and inventory tracking to profit estimation.
 
 Perfect for:
-- **Catering Services** - Manage large-scale events and orders
+- **Catering Services** - Track ingredients, suppliers, and purchases
 - **Restaurant Groups** - Track inventory and menu profitability
 - **Food Businesses** - Monitor stock levels and revenue
 - **Event Caterers** - Handle multiple simultaneous events
@@ -171,7 +169,6 @@ Perfect for:
 
 ### Intelligent Dashboard
 - Real-time overview of business metrics
-- Today's orders count and upcoming events tracking
 - Stock value monitoring and monthly profit indicators
 - Total revenue and net balance tracking
 - Interactive charts showing revenue trends and best-selling items
@@ -187,16 +184,6 @@ Perfect for:
 - Batch management and expiration tracking
 - Inventory adjustment history
 
-### Order Management System
-- Complete order lifecycle management (Inquiry → Confirmed → In Progress → Delivered)
-- Support for multiple client types (Wedding, Corporate, Family, Individual)
-- Guest count and pricing per head
-- Advance payment tracking and balance management
-- Event-based order organization
-- Order status tracking and timeline
-- Custom menu selection per order
-- Notes and special requirements
-
 ### Menu Management
 - Comprehensive menu item database
 - Category-based menu organization (Rice, BBQ, Main Courses, Desserts, etc.)
@@ -208,11 +195,8 @@ Perfect for:
 
 ### Financial Tracking
 - Detailed profit and loss analysis
-- Revenue tracking by order and time period
 - Margin analysis on menu items
 - Cost of goods sold (COGS) calculations
-- Payment received vs pending tracking
-- Advanced and balance payment management
 - Financial reports and trends
 
 ### Purchase Management
@@ -242,7 +226,6 @@ Perfect for:
 ## Dashboard Capabilities
 
 ### Real-Time Metrics
-- **Today's Orders** - Quick view of current day's orders
 - **Upcoming Events** - Count and trend of scheduled events
 - **Stock Value** - Total inventory value in currency
 - **Monthly Profit** - Net profit with trend indicators
@@ -330,7 +313,6 @@ src/
 │   ├── layout/         # Layout components
 │   └── ui/             # Shadcn-ui components
 ├── pages/              # Full page components
-├── data/               # Mock data and fixtures
 ├── types/              # TypeScript type definitions
 ├── hooks/              # Custom React hooks
 └── lib/                # Utility functions
@@ -405,7 +387,6 @@ CMD ["serve", "-s", "dist", "-l", "3000"]
 | Page | Features |
 |------|----------|
 | **Dashboard** | Overview, stats, charts, alerts, upcoming events |
-| **Orders** | Create, edit, track orders, payment status, event details |
 | **Menu** | Manage items, pricing, margins, ingredients, availability |
 | **Inventory** | Stock levels, categories, low-stock alerts, valuations |
 | **Purchases** | Purchase orders, suppliers, delivery tracking, costs |
@@ -476,7 +457,7 @@ A: Absolutely! It's specifically designed for restaurants, catering companies, c
 A: Yes! Completely free and open source under MIT license. No hidden costs, no paid tiers.
 
 **Q: Do I need a backend/database?**
-A: No! It comes with mock data for testing. You can integrate your own API/database when ready.
+A: Yes. Sign-in and dashboard data require the Express API and PostgreSQL.
 
 **Q: How do I deploy to production?**
 A: See the [Deployment](#deployment) section. Supports Vercel (1-click), Netlify, AWS, Docker, and self-hosted options.
@@ -498,7 +479,6 @@ A: Yes! It's a web app, so it works in any modern browser. No backend required f
 ## Roadmap
 
 ### v1.0 (Current - Production Ready)
-- [x] Order management system
 - [x] Real-time inventory tracking
 - [x] Menu profitability analysis
 - [x] Financial dashboard

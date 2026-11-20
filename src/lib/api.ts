@@ -78,27 +78,6 @@ export const purchaseAPI = {
 };
 
 // ============================================================================
-// ORDERS API
-// ============================================================================
-
-export const orderAPI = {
-  // Get all orders
-  getAll: () => api.get("/orders"),
-
-  // Get all order items
-  getAllItems: () => api.get("/order-items"),
-
-  // Create order
-  create: (data) => api.post("/orders", data),
-
-  // Delete order
-  delete: (id) => api.delete(`/orders/${id}`),
-
-  // Update order
-  update: (id, data) => api.put(`/orders/${id}`, data),
-};
-
-// ============================================================================
 // SEARCH API
 // ============================================================================
 

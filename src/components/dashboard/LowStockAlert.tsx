@@ -1,15 +1,13 @@
-import { InventoryItem } from '@/types';
+import type { LowStockItem } from '@/types';
 import { AlertTriangle, Package } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface LowStockAlertProps {
-  items: InventoryItem[];
+  items: LowStockItem[];
 }
 
 export function LowStockAlert({ items }: LowStockAlertProps) {
-  const lowStockItems = items.filter(item => item.currentStock <= item.minimumStock);
-
-  if (lowStockItems.length === 0) {
+  if (items.length === 0) {
     return (
       <div className="card-premium p-6">
         <div className="flex items-center gap-3 mb-4">
@@ -34,21 +32,20 @@ export function LowStockAlert({ items }: LowStockAlertProps) {
         </div>
         <div>
           <h3 className="font-display text-lg font-semibold text-foreground">Low Stock Alert</h3>
-          <p className="text-sm text-muted-foreground">{lowStockItems.length} items need restocking</p>
+          <p className="text-sm text-muted-foreground">Items that need restocking</p>
         </div>
       </div>
 
       <div className="space-y-3">
-        {lowStockItems.map((item) => {
-          const stockPercentage = (item.currentStock / item.minimumStock) * 100;
-          const isCritical = stockPercentage < 50;
+        {items.map((item) => {
+          const isCritical = Number(item.current_stock) < Number(item.minimum_stock) / 2;
           
           return (
             <div key={item.id} className="flex items-center justify-between py-2 border-b border-border/50 last:border-0">
               <div>
                 <p className="font-medium text-sm text-foreground">{item.name}</p>
                 <p className="text-xs text-muted-foreground">
-                  {item.currentStock} / {item.minimumStock} {item.unit}
+                  {item.current_stock} / {item.minimum_stock} {item.unit}
                 </p>
               </div>
               <span className={cn(

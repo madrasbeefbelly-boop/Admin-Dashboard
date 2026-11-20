@@ -4,12 +4,11 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import type { MenuCatalogItem } from '@/types';
+import type { DashboardStats, LowStockItem, MenuCatalogItem } from '@/types';
 import {
   menuAPI,
   inventoryAPI,
   purchaseAPI,
-  orderAPI,
   searchAPI,
   userAPI,
   dashboardAPI,
@@ -87,7 +86,7 @@ export const useInventory = () => {
 };
 
 export const useLowStockItems = () => {
-  return useQuery({
+  return useQuery<LowStockItem[]>({
     queryKey: ['lowStockItems'],
     queryFn: async () => {
       const response = await inventoryAPI.getLowStock();
@@ -102,6 +101,7 @@ export const useCreateInventoryItem = () => {
     mutationFn: (data) => inventoryAPI.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['inventory'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboardStats'] });
       queryClient.invalidateQueries({ queryKey: ['lowStockItems'] });
     },
   });
@@ -113,6 +113,7 @@ export const useUpdateInventoryItem = () => {
     mutationFn: ({ id, data }) => inventoryAPI.update(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['inventory'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboardStats'] });
     },
   });
 };
@@ -123,6 +124,7 @@ export const useUpdateStock = () => {
     mutationFn: ({ id, data }) => inventoryAPI.updateStock(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['inventory'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboardStats'] });
       queryClient.invalidateQueries({ queryKey: ['lowStockItems'] });
     },
   });
@@ -134,6 +136,7 @@ export const useDeleteInventoryItem = () => {
     mutationFn: (id) => inventoryAPI.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['inventory'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboardStats'] });
       queryClient.invalidateQueries({ queryKey: ['lowStockItems'] });
     },
   });
@@ -160,6 +163,7 @@ export const useCreatePurchase = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['purchases'] });
       queryClient.invalidateQueries({ queryKey: ['inventory'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboardStats'] });
       queryClient.invalidateQueries({ queryKey: ['lowStockItems'] });
     },
   });
@@ -171,6 +175,7 @@ export const useUpdatePurchase = () => {
     mutationFn: ({ id, data }) => purchaseAPI.update(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['purchases'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboardStats'] });
     },
   });
 };
@@ -182,61 +187,7 @@ export const useDeletePurchase = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['purchases'] });
       queryClient.invalidateQueries({ queryKey: ['inventory'] });
-    },
-  });
-};
-
-// ============================================================================
-// ORDER HOOKS
-// ============================================================================
-
-export const useOrders = () => {
-  return useQuery({
-    queryKey: ['orders'],
-    queryFn: async () => {
-      const response = await orderAPI.getAll();
-      return response.data.data;
-    },
-  });
-};
-
-export const useOrderItems = () => {
-  return useQuery({
-    queryKey: ['orderItems'],
-    queryFn: async () => {
-      const response = await orderAPI.getAllItems();
-      return response.data.data;
-    },
-  });
-};
-
-export const useCreateOrder = () => {
-  const queryClient = useQueryClient();
-  return useMutation<any, Error, any>({
-    mutationFn: (data) => orderAPI.create(data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['orders'] });
-      queryClient.invalidateQueries({ queryKey: ['orderItems'] });
-    },
-  });
-};
-export const useDeleteOrder = () => {
-  const queryClient = useQueryClient();
-  return useMutation<any, Error, string>({
-    mutationFn: (id) => orderAPI.delete(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['orders'] });
-    },
-  });
-};
-
-
-export const useUpdateOrder = () => {
-  const queryClient = useQueryClient();
-  return useMutation<any, Error, { id: string; data: any }>({
-    mutationFn: ({ id, data }) => orderAPI.update(id, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['orders'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboardStats'] });
     },
   });
 };
@@ -250,7 +201,7 @@ export const useSearch = (query) => {
     queryKey: ['search', query],
     queryFn: async () => {
       if (!query || query.length < 2) {
-        return { orders: [], menuItems: [], inventory: [] };
+        return { menuItems: [], inventory: [] };
       }
       const response = await searchAPI.search(query);
       return response.data.data;
@@ -288,7 +239,7 @@ export const useUpdateProfile = () => {
 // ============================================================================
 
 export const useDashboardStats = () => {
-  return useQuery({
+  return useQuery<DashboardStats>({
     queryKey: ['dashboardStats'],
     queryFn: async () => {
       const response = await dashboardAPI.getStats();

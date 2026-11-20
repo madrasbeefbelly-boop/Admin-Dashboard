@@ -52,8 +52,6 @@ export default defineConfig(async () => ({
             "@radix-ui/react-toast",
             "@radix-ui/react-tooltip",
           ],
-          // Split chart library
-          "chart-vendor": ["recharts"],
           // Split form libraries
           "form-vendor": ["react-hook-form", "@hookform/resolvers", "zod"],
         },
