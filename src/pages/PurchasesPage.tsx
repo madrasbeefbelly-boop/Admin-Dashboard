@@ -1,6 +1,7 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
-import { usePurchases, useCreatePurchase, useSuppliers, useCreateSupplier, useDeletePurchase, useDeleteSupplier } from '@/hooks/api';
+import { usePurchases, useCreatePurchase, useInventory, useSuppliers, useCreateSupplier, useDeletePurchase, useDeleteSupplier } from '@/hooks/api';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -22,6 +23,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
@@ -40,8 +42,6 @@ export default function PurchasesPage() {
     purchase_date: '',
     quantity: '',
     cost: '',
-    ingredient_name: '',
-    unit: 'kg',
   });
   const [supplierFormData, setSupplierFormData] = useState({
     name: '',
@@ -53,6 +53,9 @@ export default function PurchasesPage() {
 
   // API hooks
   const { data: purchases = [], isLoading, error, refetch } = usePurchases();
+  const inventory = useInventory();
+  const inventoryItems = inventory.data ?? [];
+  const selectedItem = inventoryItems.find(item => item.id === formData.item_id);
   const { data: suppliers = [] } = useSuppliers();
   const createPurchase = useCreatePurchase();
   const createSupplier = useCreateSupplier();
@@ -121,7 +124,7 @@ export default function PurchasesPage() {
   };
 
   const handleLogPurchase = async () => {
-    if (!formData.supplier_id || !formData.purchase_date || !formData.quantity || !formData.cost || !formData.ingredient_name || !formData.unit) {
+    if (!formData.supplier_id || !formData.purchase_date || !formData.quantity || !formData.cost || !selectedItem) {
       toast.error('Please fill in all required fields');
       return;
     }
@@ -139,10 +142,9 @@ export default function PurchasesPage() {
         supplier_name: selectedSupplier.name,
         purchase_date: formData.purchase_date,
         items: [{
+          inventory_item_id: selectedItem.id,
           quantity: parseFloat(formData.quantity),
           unit_price: parseFloat(formData.cost),
-          ingredient_name: formData.ingredient_name,
-          unit: formData.unit,
         }],
       });
       toast.success('Purchase logged successfully!');
@@ -153,8 +155,6 @@ export default function PurchasesPage() {
         purchase_date: '',
         quantity: '',
         cost: '',
-        ingredient_name: '',
-        unit: 'kg',
       });
     } catch (error) {
       toast.error(error.response?.data?.error || 'Failed to log purchase');
@@ -193,6 +193,7 @@ export default function PurchasesPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Log New Purchase</DialogTitle>
+            <DialogDescription>Choose an inventory item to update its stock when the purchase is saved.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div>
@@ -228,51 +229,45 @@ export default function PurchasesPage() {
               />
             </div>
             <div>
-              <label className="text-sm font-medium">Item/Ingredient Name *</label>
-              <Input
-                type="text"
-                placeholder="e.g., Chicken, Rice, Oil"
-                value={formData.ingredient_name}
-                onChange={(e) => setFormData({ ...formData, ingredient_name: e.target.value })}
-              />
+              <label htmlFor="purchase-item" className="text-sm font-medium">Item Name *</label>
+              <Select
+                value={selectedItem?.id ?? ''}
+                onValueChange={(item_id) => setFormData(previous => ({ ...previous, item_id, quantity: '' }))}
+                disabled={inventory.isPending || inventory.isError || inventoryItems.length === 0}
+              >
+                <SelectTrigger id="purchase-item" aria-required="true">
+                  <SelectValue placeholder={inventory.isPending ? 'Loading inventory…' : 'Select an inventory item'} />
+                </SelectTrigger>
+                <SelectContent>
+                  {inventoryItems.map(item => (
+                    <SelectItem key={item.id} value={item.id}>{item.name} ({item.unit})</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {inventory.isError ? (
+                <Button variant="link" className="h-auto px-0 py-1" onClick={() => inventory.refetch()}>
+                  Could not load inventory. Try again.
+                </Button>
+              ) : !inventory.isPending && inventoryItems.length === 0 && (
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Add an item in <Link to="/inventory" className="text-gold underline">Inventory</Link> first.
+                </p>
+              )}
             </div>
             <div>
-              <label className="text-sm font-medium">Quantity & Unit *</label>
+              <label htmlFor="purchase-quantity" className="text-sm font-medium">Quantity *</label>
               <div className="flex gap-2">
                 <Input
                   type="number"
+                  id="purchase-quantity"
                   placeholder="e.g., 10"
                   value={formData.quantity}
                   onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
                   className="flex-1 max-md:min-w-0"
                 />
-                <Select value={formData.unit} onValueChange={(value) => setFormData({ ...formData, unit: value })}>
-                  <SelectTrigger className="w-24">
-                    <SelectValue placeholder="Unit" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="kg">kg</SelectItem>
-                    <SelectItem value="g">g</SelectItem>
-                    <SelectItem value="ton">ton</SelectItem>
-                    <SelectItem value="lbs">lbs</SelectItem>
-                    <SelectItem value="oz">oz</SelectItem>
-                    <SelectItem value="L">L</SelectItem>
-                    <SelectItem value="ml">ml</SelectItem>
-                    <SelectItem value="gallon">gallon</SelectItem>
-                    <SelectItem value="cup">cup</SelectItem>
-                    <SelectItem value="tbsp">tbsp</SelectItem>
-                    <SelectItem value="tsp">tsp</SelectItem>
-                    <SelectItem value="pcs">pcs</SelectItem>
-                    <SelectItem value="box">box</SelectItem>
-                    <SelectItem value="bottle">bottle</SelectItem>
-                    <SelectItem value="dozen">dozen</SelectItem>
-                    <SelectItem value="bundle">bundle</SelectItem>
-                    <SelectItem value="can">can</SelectItem>
-                    <SelectItem value="jar">jar</SelectItem>
-                    <SelectItem value="packet">packet</SelectItem>
-                    <SelectItem value="carton">carton</SelectItem>
-                  </SelectContent>
-                </Select>
+                <span className="flex min-w-20 items-center justify-center rounded-md border border-input px-3 text-sm text-muted-foreground">
+                  {selectedItem?.unit ?? 'Unit'}
+                </span>
               </div>
             </div>
             <div>
@@ -292,7 +287,7 @@ export default function PurchasesPage() {
             <Button
               className="bg-gold hover:bg-gold-light"
               onClick={handleLogPurchase}
-              disabled={createPurchase.isPending}
+              disabled={createPurchase.isPending || !selectedItem || inventory.isError}
             >
               {createPurchase.isPending ? (
                 <>
