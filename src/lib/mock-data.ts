@@ -107,6 +107,21 @@ const responses = new Map<string, unknown>([
     id: 'sample-notification', title: 'Pepper masala is running low', message: '0.35 kg remaining in sample inventory.',
     is_read: false, created_at: date(0).toISOString(), reference_type: 'Inventory',
   }]],
+  ['/whatsapp/status', {
+    status: 'connected',
+    isConnected: true,
+    isInitializing: false,
+    qrCode: null,
+    info: { pushname: 'Madras Beef Belly Official', wid: '919876543210', phone: '919876543210' },
+    targetPhone: '919876543210',
+    targetGroupId: '',
+    alertLowStock: true,
+    alertNewOrders: true,
+  }],
+  ['/whatsapp/start', { success: true }],
+  ['/whatsapp/config', { success: true }],
+  ['/whatsapp/disconnect', { success: true }],
+  ['/whatsapp/test', { success: true }],
 ]);
 
 function mockError(config: InternalAxiosRequestConfig, status: number, message: string) {

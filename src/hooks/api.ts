@@ -14,6 +14,7 @@ import {
   dashboardAPI,
   suppliersAPI,
   ordersAPI,
+  whatsappAPI,
 } from '@/lib/api';
 
 // ============================================================================
@@ -357,5 +358,68 @@ export const useAdjustStock = () => {
       queryClient.invalidateQueries({ queryKey: ['dashboardStats'] });
       queryClient.invalidateQueries({ queryKey: ['menuItems'] });
     },
+  });
+};
+
+// ============================================================================
+// WHATSAPP BOT HOOKS
+// ============================================================================
+
+export const useWhatsAppStatus = () => {
+  return useQuery({
+    queryKey: ['whatsappStatus'],
+    queryFn: async () => {
+      const response = await whatsappAPI.getStatus();
+      return response.data.data;
+    },
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      // Fast polling (2.5s) when QR code is waiting to be scanned or initializing
+      if (status === 'qr_ready' || status === 'initializing') {
+        return 2500;
+      }
+      return 15000;
+    },
+  });
+};
+
+export const useStartWhatsApp = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => whatsappAPI.start(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['whatsappStatus'] });
+    },
+  });
+};
+
+export const useSaveWhatsAppConfig = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: {
+      targetPhone: string;
+      targetGroupId?: string;
+      alertLowStock: boolean;
+      alertNewOrders: boolean;
+    }) => whatsappAPI.saveConfig(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['whatsappStatus'] });
+    },
+  });
+};
+
+export const useDisconnectWhatsApp = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => whatsappAPI.disconnect(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['whatsappStatus'] });
+    },
+  });
+};
+
+export const useSendWhatsAppTest = () => {
+  return useMutation({
+    mutationFn: (phone?: string) => whatsappAPI.sendTest(phone),
   });
 };

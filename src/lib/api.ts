@@ -175,4 +175,30 @@ export const notificationsAPI = {
   markAllAsRead: () => api.put("/notifications/read-all", undefined, { withCredentials: true }),
 };
 
+// ============================================================================
+// WHATSAPP BOT API
+// ============================================================================
+
+export const whatsappAPI = {
+  // Get WhatsApp connection status and settings
+  getStatus: () => api.get('/whatsapp/status'),
+
+  // Trigger client start / new QR generation
+  start: () => api.post('/whatsapp/start'),
+
+  // Save WhatsApp settings
+  saveConfig: (data: {
+    targetPhone: string;
+    targetGroupId?: string;
+    alertLowStock: boolean;
+    alertNewOrders: boolean;
+  }) => api.post('/whatsapp/config', data),
+
+  // Disconnect / Logout WhatsApp
+  disconnect: () => api.post('/whatsapp/disconnect'),
+
+  // Send a test message
+  sendTest: (phone?: string) => api.post('/whatsapp/test', { phone }),
+};
+
 export default api;
