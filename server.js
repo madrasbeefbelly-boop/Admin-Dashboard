@@ -19,6 +19,19 @@ import { fileURLToPath } from 'node:url';
 import { readFileSync } from 'node:fs';
 import { whatsappService } from './whatsappService.js';
 
+// Global error handlers to prevent crashes from Windows file locks (e.g. Chrome CrashpadMetrics)
+process.on('uncaughtException', (err) => {
+  console.error('[Process] Uncaught Exception:', err.message);
+  if (err.message && (err.message.includes('EBUSY') || err.message.includes('CrashpadMetrics') || err.message.includes('.wwebjs_auth'))) {
+    console.warn('[Process] Handled Windows file lock cleanup warning for WhatsApp session');
+    return;
+  }
+});
+
+process.on('unhandledRejection', (reason) => {
+  console.error('[Process] Unhandled Rejection:', reason?.message || reason);
+});
+
 // Load environment variables
 const hosted = process.env.VERCEL === '1';
 if (!hosted) dotenv.config();
