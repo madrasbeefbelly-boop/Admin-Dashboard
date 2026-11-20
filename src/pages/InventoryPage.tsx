@@ -560,9 +560,9 @@ export default function InventoryPage() {
 
       {/* ── TAB 1: LIVE INGREDIENTS TABLE ── */}
       {activeTab === 'inventory' && (
-        <div className="card-premium overflow-hidden">
+        <div className={cn('card-premium overflow-hidden', filteredItems.length > 0 && 'ingredient-list')}>
           {filteredItems.length > 0 ? (
-            <Table role="table" className="mobile-records">
+            <Table role="table" className="mobile-records ingredient-records">
               <TableHeader role="rowgroup">
                 <TableRow role="row" className="hover:bg-transparent border-border">
                   <TableHead role="columnheader" scope="col" className="font-display font-semibold">Ingredient</TableHead>
@@ -584,32 +584,33 @@ export default function InventoryPage() {
 
                   return (
                     <TableRow role="row" key={item.id} className="border-border hover:bg-secondary/40 transition-colors">
-                      <TableCell role="cell" mobileLabel="Ingredient" className="font-semibold text-slate-900">
+                      <TableCell role="cell" className="ingredient-name font-semibold text-slate-900">
                         {item.name}
                       </TableCell>
-                      <TableCell role="cell" mobileLabel="Category">
+                      <TableCell role="cell" className="ingredient-category">
                         <Badge variant="outline" className="text-xs font-medium bg-slate-50 border-slate-200">
                           {item.category || 'General'}
                         </Badge>
                       </TableCell>
-                      <TableCell role="cell" mobileLabel="Stock Level">
+                      <TableCell role="cell" mobileLabel="Stock level" className="ingredient-stock">
                         <div className="flex items-center gap-2.5">
                           <span className="font-bold tabular-nums min-w-[50px]">
                             {currentStock} <span className="text-xs font-normal text-muted-foreground">{item.unit}</span>
                           </span>
                           <Progress
                             value={stockPercentage}
-                            className={cn('w-20 h-2 max-md:max-w-[50%]', isLowStock && '[&>div]:bg-amber-500')}
+                            className={cn('hidden h-2 w-20 md:block', isLowStock && '[&>div]:bg-amber-500')}
                           />
                         </div>
+                        {isLowStock && <span className="text-xs text-muted-foreground md:hidden">Minimum {minStock} {item.unit}</span>}
                       </TableCell>
-                      <TableCell role="cell" mobileLabel="Cost/Unit" className="font-semibold tabular-nums">
+                      <TableCell role="cell" mobileLabel="Cost per unit" className="ingredient-cost font-semibold tabular-nums">
                         ₹{item.cost_per_unit} <span className="text-xs font-normal text-muted-foreground">/{item.unit}</span>
                       </TableCell>
-                      <TableCell role="cell" mobileLabel="Status">
+                      <TableCell role="cell" className="ingredient-status">
                         {isLowStock ? (
                           <Badge className="bg-amber-50 text-amber-800 border-amber-200 border text-xs font-bold">
-                            Low Stock (≤{minStock} {item.unit})
+                            Low Stock<span className="ml-1 hidden md:inline">(≤{minStock} {item.unit})</span>
                           </Badge>
                         ) : (
                           <Badge className="bg-emerald-50 text-emerald-800 border-emerald-200 border text-xs font-bold">
@@ -617,14 +618,14 @@ export default function InventoryPage() {
                           </Badge>
                         )}
                       </TableCell>
-                      <TableCell role="cell" mobileLabel="Affected Dishes">
+                      <TableCell role="cell" className="ingredient-usage">
                         {affectedDishes.length > 0 ? (
                           <div className="flex items-center gap-1 flex-wrap">
                             <span className="text-xs text-slate-600 font-medium">
                               Used in {affectedDishes.length} dish{affectedDishes.length > 1 ? 'es' : ''}
                             </span>
                             {isLowStock && (
-                              <Badge variant="outline" className="text-[10px] bg-rose-50 text-rose-700 border-rose-200">
+                              <Badge variant="outline" className="hidden text-[10px] bg-rose-50 text-rose-700 border-rose-200 md:inline-flex">
                                 Low stock warning
                               </Badge>
                             )}
@@ -633,12 +634,12 @@ export default function InventoryPage() {
                           <span className="text-xs text-muted-foreground italic">No recipe linked</span>
                         )}
                       </TableCell>
-                      <TableCell role="cell" mobileLabel="Actions" className="text-right">
+                      <TableCell role="cell" className="ingredient-actions text-right">
                         <div className="flex items-center justify-end gap-1.5">
                           <Button
                             variant="outline"
                             size="sm"
-                            className="h-8 text-xs font-semibold border-slate-200 hover:bg-slate-100 shadow-xs"
+                            className="h-8 text-xs font-semibold border-slate-200 hover:bg-slate-100 shadow-xs max-md:h-11 max-md:flex-1"
                             onClick={() => openAdjustDialog(item)}
                           >
                             <ArrowUpDown className="size-3.5 mr-1 text-[#e11d48]" />
@@ -650,7 +651,7 @@ export default function InventoryPage() {
                             aria-label={`Delete inventory item ${item.name}`}
                             onClick={() => handleDeleteItem(item.id)}
                             disabled={deleteItem.isPending}
-                            className="size-8 p-0 text-slate-400 hover:text-rose-600 hover:bg-rose-50"
+                            className="size-8 p-0 text-slate-400 hover:text-rose-600 hover:bg-rose-50 max-md:size-11 max-md:border max-md:border-input max-md:bg-background max-md:text-slate-600"
                           >
                             <Trash2 className="size-4" />
                           </Button>

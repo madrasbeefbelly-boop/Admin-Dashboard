@@ -66,22 +66,23 @@ export function Header({ title, subtitle }: HeaderProps) {
 
   return (
     <header className="sticky top-0 z-20 bg-[#fafafb]/90 backdrop-blur-md border-b border-slate-100">
-      <div className="mx-auto grid max-w-[96rem] grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 gap-y-0.5 px-4 py-2.5 sm:px-6 md:flex md:justify-between md:gap-4 md:py-3.5 xl:px-8">
-        <div className="col-start-1 row-start-1 flex min-w-0 items-center gap-2 md:hidden">
+      <div className="mx-auto flex max-w-[96rem] items-center justify-between gap-1 px-3 py-2.5 sm:px-6 md:gap-4 md:py-3.5 xl:px-8">
+        <div className="flex min-w-0 items-center gap-1.5 max-[359px]:gap-1">
           <img src="/brand/Bull-logo.png" alt="" width={32} height={32}
-            className="size-8 shrink-0 rounded-lg bg-black object-contain" />
-          <span className="text-[13px] font-semibold leading-tight text-slate-900">{businessName}</span>
-        </div>
-
-        <div className="col-span-2 row-start-2 min-w-0">
-          <h1 className="font-display text-xl font-bold tracking-tight text-slate-900 max-md:leading-tight sm:text-2xl">
-            {title}
-          </h1>
-          {subtitle && <p className="mt-0.5 hidden text-xs text-slate-400 md:block">{subtitle}</p>}
+            className="size-8 shrink-0 rounded-lg bg-black object-contain max-[359px]:size-7 md:hidden" />
+          <div className="min-w-0">
+            <span className="block text-[13px] leading-tight font-extrabold tracking-tight text-slate-950 max-[359px]:text-xs md:hidden">
+              {businessName}
+            </span>
+            <h1 className="font-display text-[11px] leading-tight font-medium text-slate-600 md:text-2xl md:leading-8 md:font-bold md:tracking-tight md:text-slate-900">
+              {title}
+            </h1>
+            {subtitle && <p className="mt-0.5 hidden text-xs text-slate-400 md:block">{subtitle}</p>}
+          </div>
         </div>
 
         {/* Right utility icons with real data counters only */}
-        <div className="col-start-2 row-start-1 flex shrink-0 items-center gap-2 sm:gap-3">
+        <div className="flex shrink-0 items-center gap-1 md:gap-3">
           <nav aria-label="Dashboard shortcuts" className="flex items-center gap-0.5 md:gap-1">
             {dashboardNavigation.map(({ name, href, icon: Icon, headerVisibility }) => (
               <NavLink

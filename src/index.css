@@ -528,4 +528,73 @@
   .mobile-records .mobile-record-value button:not([role="combobox"]) {
     min-width: 2.75rem;
   }
+
+  .ingredient-list {
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .ingredient-records tbody {
+    display: grid;
+    gap: 0.75rem;
+  }
+
+  .ingredient-records tbody tr {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    grid-template-areas:
+      "name name name name status status"
+      "category category category category category category"
+      "stock stock stock cost cost cost"
+      "usage usage usage usage usage usage"
+      "actions actions actions actions actions actions";
+    align-items: start;
+    gap: 0.375rem 0.625rem;
+    padding: 0.875rem;
+    border: 1px solid var(--color-input);
+    border-radius: 1rem;
+    background: var(--color-card);
+  }
+
+  .ingredient-records tbody td {
+    display: block;
+    min-height: 0;
+    padding: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .ingredient-records .ingredient-name {
+    grid-area: name;
+    font-size: 1rem;
+    line-height: 1.25;
+  }
+
+  .ingredient-records .ingredient-category { grid-area: category; }
+  .ingredient-records .ingredient-stock { grid-area: stock; }
+  .ingredient-records .ingredient-cost { grid-area: cost; }
+  .ingredient-records .ingredient-usage { grid-area: usage; }
+  .ingredient-records .ingredient-actions { grid-area: actions; }
+
+  .ingredient-records .ingredient-status {
+    grid-area: status;
+    justify-self: end;
+  }
+
+  .ingredient-records .ingredient-stock,
+  .ingredient-records .ingredient-cost {
+    align-self: stretch;
+    padding: 0.5rem 0.625rem;
+    border-radius: 0.625rem;
+    background: var(--color-background);
+  }
+
+  .ingredient-records .mobile-record-label {
+    font-size: 0.75rem;
+    margin-bottom: 0.125rem;
+  }
+
+  .ingredient-records .ingredient-actions {
+    margin-top: 0.25rem;
+  }
 }
