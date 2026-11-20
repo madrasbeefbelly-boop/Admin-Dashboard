@@ -408,6 +408,8 @@
   }
 
   .stat-card-title {
+    grid-area: 1 / 1 / 2 / -1;
+    padding-inline-end: 1.5rem;
     color: var(--color-muted-foreground);
     font-size: 0.8125rem;
     font-weight: 600;
@@ -426,6 +428,7 @@
   }
 
   .stat-card-icon {
+    grid-area: 1 / 2;
     justify-self: end;
     width: 1.125rem;
     height: 1.125rem;
@@ -433,8 +436,8 @@
 
   .stat-card-chart {
     align-self: end;
-    width: clamp(1.75rem, 7vw, 4rem);
-    height: 1.25rem;
+    width: clamp(2.25rem, 9vw, 5rem);
+    height: 1.5rem;
     overflow: visible;
   }
 
@@ -484,6 +487,7 @@
 
   .summary-counts .stat-card-title {
     font-size: clamp(0.6875rem, 2.75vw, 0.875rem);
+    padding-inline-end: 1.125rem;
   }
 
   .summary-counts .stat-card-value {
@@ -491,7 +495,8 @@
   }
 
   .summary-counts .stat-card-chart {
-    width: clamp(1.125rem, 5.5vw, 2.5rem);
+    width: clamp(1.5rem, 7vw, 3.25rem);
+    height: 1.375rem;
   }
 
   .mobile-records,
