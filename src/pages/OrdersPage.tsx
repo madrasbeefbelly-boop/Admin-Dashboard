@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -39,7 +39,8 @@ import {
 } from 'lucide-react';
 import { useMenuItems, useCreateOrder, useOrders, useDeleteOrder, useUpdateOrderStatus } from '@/hooks/api';
 import { toast } from 'sonner';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
+import { newOrderTarget } from '@/components/layout/navigation';
 import type { OrderItem } from '@/types';
 
 const currency = new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' });
@@ -66,10 +67,18 @@ export default function OrdersPage() {
   const createOrder = useCreateOrder();
   const deleteOrder = useDeleteOrder();
   const updateStatus = useUpdateOrderStatus();
+  const { hash, key } = useLocation();
+  const orderSection = useRef<HTMLDivElement>(null);
 
   const [selectedId, setSelectedId] = useState('');
   const [cart, setCart] = useState<OrderItem[]>([]);
   const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (hash !== '#' + newOrderTarget || menuLoading) return;
+    orderSection.current?.scrollIntoView({ block: 'start' });
+    orderSection.current?.focus({ preventScroll: true });
+  }, [hash, key, menuLoading]);
 
   // Shortage modal state
   const [shortageInfo, setShortageInfo] = useState<{
@@ -230,7 +239,8 @@ export default function OrdersPage() {
         {/* ── LEFT COLUMN: Select & Cart (5 cols on lg) ── */}
         <div className="lg:col-span-5 space-y-4">
           {/* Item selector */}
-          <div className="card-premium p-5 space-y-3">
+          <div id={newOrderTarget} ref={orderSection} tabIndex={-1} aria-label="New order"
+            className="card-premium scroll-mt-28 p-5 space-y-3">
             <p className="text-sm font-medium text-muted-foreground">Select item</p>
             <Select value={selectedId} onValueChange={setSelectedId}>
               <SelectTrigger className="w-full" aria-label="Select a menu item">

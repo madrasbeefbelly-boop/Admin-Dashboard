@@ -1,18 +1,9 @@
 import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
-  ChefHat,
-  LayoutDashboard,
-  UtensilsCrossed,
-  Package,
-  ShoppingCart,
-  Calculator,
-  ClipboardList,
   Menu,
   ChevronLeft,
   ChevronRight,
-  Settings,
-  LayoutGrid,
   Plus,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -22,15 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { useIsMobile } from '@/hooks/use-mobile';
 
-const navigation = [
-  { name: 'Dashboard', href: '/', icon: LayoutDashboard },
-  { name: 'Orders', href: '/orders', icon: ClipboardList, hasBadge: true },
-  { name: 'Menus', href: '/menu', icon: UtensilsCrossed, hasChevron: true },
-  { name: 'Inventory', href: '/inventory', icon: Package },
-  { name: 'Purchases', href: '/purchases', icon: ShoppingCart },
-  { name: 'Profit Calculator', href: '/profit', icon: Calculator },
-  { name: 'Settings', href: '/settings', icon: Settings },
-];
+import { dashboardNavigation, newOrderTarget } from './navigation';
 
 function SidebarLinks({
   collapsed = false,
@@ -57,13 +40,12 @@ function SidebarLinks({
             className="flex items-center gap-3 min-w-0"
             aria-label={profile?.name || businessName}
           >
-            <div className="size-10 rounded-xl bg-white flex items-center justify-center text-[#e11d48] shadow-sm shrink-0">
-              <ChefHat className="size-6 stroke-[2.2]" />
-            </div>
+            <img src="/brand/Bull-logo.png" alt="" width={40} height={40}
+              className="size-10 shrink-0 rounded-xl bg-black object-contain shadow-sm" />
             {!collapsed && (
               <div className="min-w-0">
                 <strong className="block text-lg font-bold tracking-tight text-white leading-tight truncate">
-                  {profile?.name || 'Madras Belly'}
+                  {profile?.name || businessName}
                 </strong>
                 <small className="block text-[11px] text-white/80 font-medium truncate">
                   {profile?.tagline || businessTagline}
@@ -86,7 +68,7 @@ function SidebarLinks({
 
         {/* Navigation Items */}
         <nav aria-label="Kitchen operations" className="space-y-1.5 py-2">
-          {navigation.map(({ name, href, icon: Icon, hasBadge, hasChevron }) => {
+          {dashboardNavigation.map(({ name, href, icon: Icon, hasBadge, hasChevron }) => {
             const isActive = location.pathname === href;
             return (
               <Link
@@ -147,20 +129,14 @@ function SidebarLinks({
       {/* Bottom Promo / Action Box (Only when not collapsed) */}
       {!collapsed && (
         <div className="pt-4 pb-2">
-          <div className="bg-[#9f1239]/60 border border-white/15 rounded-2xl p-4 text-white space-y-3 relative overflow-hidden backdrop-blur-xs shadow-inner">
-            <div className="size-8 rounded-lg bg-white/15 flex items-center justify-center text-white">
-              <LayoutGrid className="size-4" />
-            </div>
-            <p className="text-xs text-white/90 font-medium leading-relaxed">
-              Organize your menus through button below
-            </p>
+          <div className="bg-[#9f1239]/60 border border-white/15 rounded-2xl p-4 shadow-inner">
             <Link
-              to="/menu"
+              to={'/orders#' + newOrderTarget}
               onClick={onNavigate}
               className="w-full py-2.5 px-3 rounded-xl bg-white text-[#e11d48] hover:bg-white/95 font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm transition-all"
             >
-              <Plus className="size-4 stroke-[2.5]" />
-              Add Menus
+              <Plus className="size-4 stroke-[2.5]" aria-hidden="true" />
+              Add Order
             </Link>
           </div>
         </div>

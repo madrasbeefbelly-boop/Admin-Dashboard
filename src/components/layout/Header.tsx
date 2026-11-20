@@ -1,13 +1,11 @@
-import { useNavigate } from 'react-router-dom';
+import { useState } from 'react';
+import { NavLink, useNavigate } from 'react-router-dom';
 import {
   Bell,
-  MessageSquare,
-  Gift,
   Settings,
   LogOut,
   Loader2,
 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,6 +19,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
 import { MobileSidebar } from './Sidebar';
+import { dashboardNavigation } from './navigation';
+import { cn } from '@/lib/utils';
 
 interface HeaderProps {
   title: string;
@@ -31,6 +31,7 @@ interface HeaderProps {
 export function Header({ title, subtitle, hideMobileSubtitle }: HeaderProps) {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+  const [showNotifications, setShowNotifications] = useState(false);
 
   // API hooks
   const { data: profile, isLoading: profileLoading } = useProfile();
@@ -90,108 +91,30 @@ export function Header({ title, subtitle, hideMobileSubtitle }: HeaderProps) {
 
         {/* Right utility icons with real data counters only */}
         <div className="flex shrink-0 items-center gap-2 sm:gap-3">
-          {/* 1. Bell Icon with Real Unread Notification Count only */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                type="button"
-                className="relative p-2 rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors"
-                aria-label="Notifications"
+          <nav aria-label="Dashboard shortcuts" className="flex items-center gap-0.5 sm:gap-1">
+            {dashboardNavigation.map(({ name, href, icon: Icon, headerVisibility }) => (
+              <NavLink
+                key={href}
+                to={href}
+                end={href === '/'}
+                aria-label={name}
+                title={name}
+                className={cn(
+                  'flex rounded-xl p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 aria-[current=page]:text-primary',
+                  headerVisibility,
+                )}
               >
-                <Bell className="size-5" />
-                {unreadCount > 0 && (
-                  <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-[#e11d48] text-[10px] font-bold text-white rounded-full flex items-center justify-center shadow-xs">
-                    {unreadCount > 9 ? '9+' : unreadCount}
-                  </span>
-                )}
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-80 max-md:max-w-[calc(100vw-1rem)]">
-              <div className="flex items-center justify-between px-4 py-2 border-b border-border">
-                <h4 className="font-semibold text-sm">Notifications</h4>
-                {unreadCount > 0 && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-xs text-[#e11d48] h-auto p-0 hover:bg-transparent hover:text-[#e11d48]/80"
-                    onClick={() => markAllAsRead()}
-                  >
-                    Mark all as read
-                  </Button>
-                )}
-              </div>
-              <div className="max-h-[300px] overflow-y-auto">
-                {notifications.length === 0 ? (
-                  <div className="px-4 py-6 text-center text-xs text-muted-foreground">
-                    All caught up! No notifications.
-                  </div>
-                ) : (
-                  notifications.map((notification: any) => (
-                    <DropdownMenuItem
-                      key={notification.id}
-                      className="cursor-pointer px-4 py-3 border-b border-border last:border-0 flex-col items-start gap-1"
-                      onClick={() => handleNotificationClick(notification)}
-                    >
-                      <div className="flex items-center justify-between w-full">
-                        <span
-                          className={`font-medium text-xs ${
-                            !notification.is_read ? 'text-foreground font-semibold' : 'text-muted-foreground'
-                          }`}
-                        >
-                          {notification.title}
-                        </span>
-                        <span className="text-[10px] text-muted-foreground">
-                          {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
-                        </span>
-                      </div>
-                      <p className="text-xs text-muted-foreground line-clamp-2">{notification.message}</p>
-                    </DropdownMenuItem>
-                  ))
-                )}
-              </div>
-            </DropdownMenuContent>
-          </DropdownMenu>
+                <Icon className="size-5" aria-hidden="true" />
+              </NavLink>
+            ))}
+          </nav>
 
-          {/* 2. Message Square */}
-          <button
-            type="button"
-            onClick={() => navigate('/orders')}
-            className="p-2 rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors"
-            title="Orders & Feedback"
-            aria-label="Orders"
-          >
-            <MessageSquare className="size-5" />
-          </button>
-
-          {/* 3. Gift Icon */}
-          <button
-            type="button"
-            onClick={() => navigate('/menu')}
-            className="p-2 rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors hidden sm:flex"
-            title="Menu & Specials"
-            aria-label="Menu"
-          >
-            <Gift className="size-5" />
-          </button>
-
-          {/* 4. Settings Gear */}
-          <button
-            type="button"
-            onClick={handleSettingsClick}
-            className="p-2 rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors"
-            title="Settings"
-            aria-label="Settings"
-          >
-            <Settings className="size-5" />
-          </button>
-
-          {/* 5. User Profile Pill / Avatar */}
-          <DropdownMenu>
+          <DropdownMenu onOpenChange={(open) => { if (!open) setShowNotifications(false); }}>
             <DropdownMenuTrigger asChild>
               <button
                 type="button"
-                className="flex items-center gap-2 pl-2 pr-1 py-1 rounded-full hover:bg-slate-100 transition-colors cursor-pointer"
-                aria-label="User account"
+                className="relative flex items-center gap-2 pl-2 pr-1 py-1 rounded-full hover:bg-slate-100 transition-colors cursor-pointer"
+                aria-label={unreadCount > 0 ? `User account, ${unreadCount} unread notifications` : 'User account'}
               >
                 <div className="size-8 rounded-full bg-rose-100 border border-rose-200 text-[#e11d48] font-bold flex items-center justify-center text-xs shadow-xs overflow-hidden">
                   {profileLoading ? (
@@ -200,12 +123,15 @@ export function Header({ title, subtitle, hideMobileSubtitle }: HeaderProps) {
                     <span>{initials}</span>
                   )}
                 </div>
+                {unreadCount > 0 && (
+                  <span aria-hidden="true" className="absolute right-0 top-0 size-2 rounded-full bg-primary ring-2 ring-background" />
+                )}
                 <span className="hidden sm:inline-block text-xs font-semibold text-slate-700 max-w-[90px] truncate">
                   {displayName}
                 </span>
               </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuContent align="end" className="w-64">
               <div className="px-4 py-3 border-b border-border">
                 <p className="font-semibold text-sm text-foreground">{displayName}</p>
                 <p className="text-xs text-muted-foreground mt-0.5 truncate">{user?.email}</p>
@@ -213,6 +139,49 @@ export function Header({ title, subtitle, hideMobileSubtitle }: HeaderProps) {
                   {user?.role || 'Manager'}
                 </p>
               </div>
+              <DropdownMenuItem
+                aria-expanded={showNotifications}
+                onSelect={(event) => {
+                  event.preventDefault();
+                  setShowNotifications((visible) => !visible);
+                }}
+              >
+                <Bell className="mr-2 size-4" aria-hidden="true" />
+                Notifications{unreadCount > 0 && ` (${unreadCount})`}
+              </DropdownMenuItem>
+              {showNotifications && (
+                <div className="border-b border-border bg-muted/60">
+                  {unreadCount > 0 && (
+                    <DropdownMenuItem onSelect={(event) => {
+                      event.preventDefault();
+                      markAllAsRead();
+                    }}>
+                      Mark all as read
+                    </DropdownMenuItem>
+                  )}
+                  {notifications.length === 0 ? (
+                    <p className="px-3 py-4 text-sm text-muted-foreground">No notifications.</p>
+                  ) : (
+                    <div className="max-h-60 overflow-y-auto">
+                      {notifications.map((notification) => (
+                        <DropdownMenuItem
+                          key={notification.id}
+                          className="flex-col items-start gap-1 px-3 py-2"
+                          onSelect={() => handleNotificationClick(notification)}
+                        >
+                          <span className={cn('text-xs', !notification.is_read && 'font-semibold')}>
+                            {notification.title}
+                          </span>
+                          <span className="text-xs text-muted-foreground">{notification.message}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
+                          </span>
+                        </DropdownMenuItem>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
               <DropdownMenuItem onClick={handleSettingsClick} className="cursor-pointer">
                 <Settings className="size-4 mr-2" />
                 <span>Settings</span>

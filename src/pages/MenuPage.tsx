@@ -36,7 +36,6 @@ import { RecipeBuilder } from '@/components/menu/RecipeBuilder';
 import { toast } from 'sonner';
 import { isAxiosError } from 'axios';
 import type { MenuCatalogItem, MenuItemIngredient } from '@/types';
-import { menuPosterUrl } from '@/brand';
 import { averageMenuMargin } from '@/lib/utils';
 
 const categoryColors: Record<string, string> = {
@@ -262,14 +261,6 @@ export default function MenuPage() {
 
   return (
     <DashboardLayout title="Menu & Costing" subtitle="Manage your dishes and pricing">
-      <div className="mb-5 flex justify-end">
-        <Button asChild variant="outline">
-          <a href={menuPosterUrl} target="_blank" rel="noreferrer">
-            View menu poster
-          </a>
-        </Button>
-      </div>
-
       {/* Stats Summary */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <div className="stat-card">
