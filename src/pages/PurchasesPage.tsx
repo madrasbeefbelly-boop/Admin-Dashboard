@@ -35,17 +35,38 @@ import { cn } from '@/lib/utils';
 import { Plus, Search, ShoppingCart, Calendar, TrendingDown, Eye, Loader2, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
+interface PurchaseItemRow {
+  id: string;
+  item_id: string;
+  quantity: string;
+  cost: string;
+}
+
+const getTodayString = () => {
+  const d = new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const initialItemRow = (): PurchaseItemRow => ({
+  id: Math.random().toString(36).slice(2, 9),
+  item_id: '',
+  quantity: '',
+  cost: '',
+});
+
 export default function PurchasesPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [isLogPurchaseDialogOpen, setIsLogPurchaseDialogOpen] = useState(false);
   const [isAddSupplierDialogOpen, setIsAddSupplierDialogOpen] = useState(false);
-  const [formData, setFormData] = useState({
-    item_id: '',
-    supplier_id: '',
-    purchase_date: '',
-    quantity: '',
-    cost: '',
-  });
+  
+  // Multi-item purchase form state
+  const [supplierId, setSupplierId] = useState('');
+  const [purchaseDate, setPurchaseDate] = useState(getTodayString());
+  const [itemsList, setItemsList] = useState<PurchaseItemRow[]>([initialItemRow()]);
+
   const [supplierFormData, setSupplierFormData] = useState({
     name: '',
     email: '',
@@ -58,12 +79,51 @@ export default function PurchasesPage() {
   const { data: purchases = [], isLoading, error, refetch } = usePurchases();
   const inventory = useInventory();
   const inventoryItems = inventory.data ?? [];
-  const selectedItem = inventoryItems.find(item => item.id === formData.item_id);
   const { data: suppliers = [] } = useSuppliers();
   const createPurchase = useCreatePurchase();
   const createSupplier = useCreateSupplier();
   const deletePurchase = useDeletePurchase();
   const deleteSupplier = useDeleteSupplier();
+
+  // Multi-item handlers
+  const handleOpenLogPurchaseDialog = () => {
+    setSupplierId('');
+    setPurchaseDate(getTodayString());
+    setItemsList([initialItemRow()]);
+    setIsLogPurchaseDialogOpen(true);
+  };
+
+  const addItemRow = () => {
+    setItemsList((prev) => [...prev, initialItemRow()]);
+  };
+
+  const removeItemRow = (id: string) => {
+    if (itemsList.length <= 1) return;
+    setItemsList((prev) => prev.filter((item) => item.id !== id));
+  };
+
+  const updateItemRow = (id: string, field: 'item_id' | 'quantity' | 'cost', value: string) => {
+    setItemsList((prev) =>
+      prev.map((row) => {
+        if (row.id !== id) return row;
+        const updated = { ...row, [field]: value };
+        // Auto-fill cost from inventory default if empty
+        if (field === 'item_id' && value && !row.cost) {
+          const invItem = inventoryItems.find((it) => it.id === value);
+          if (invItem?.cost_per_unit != null) {
+            updated.cost = String(invItem.cost_per_unit);
+          }
+        }
+        return updated;
+      })
+    );
+  };
+
+  const totalPurchaseAmount = itemsList.reduce((sum, item) => {
+    const q = parseFloat(item.quantity) || 0;
+    const c = parseFloat(item.cost) || 0;
+    return sum + (q * c);
+  }, 0);
 
   const filteredPurchases = purchases.filter(p =>
     (p.supplier_name?.toLowerCase().includes(searchTerm.toLowerCase()) || false) ||
@@ -129,13 +189,40 @@ export default function PurchasesPage() {
   };
 
   const handleLogPurchase = async () => {
-    if (!formData.supplier_id || !formData.purchase_date || !formData.quantity || !formData.cost || !selectedItem) {
-      toast.error('Please fill in all required fields');
+    if (!supplierId) {
+      toast.error('Please select a supplier');
+      return;
+    }
+    if (!purchaseDate) {
+      toast.error('Please choose a purchase date');
       return;
     }
 
+    if (itemsList.length === 0) {
+      toast.error('Please add at least one item');
+      return;
+    }
+
+    for (let i = 0; i < itemsList.length; i++) {
+      const it = itemsList[i];
+      if (!it.item_id) {
+        toast.error(`Please select an item for Item #${i + 1}`);
+        return;
+      }
+      const q = parseFloat(it.quantity);
+      if (!q || isNaN(q) || q <= 0) {
+        toast.error(`Please enter a valid quantity for Item #${i + 1}`);
+        return;
+      }
+      const c = parseFloat(it.cost);
+      if (isNaN(c) || c < 0) {
+        toast.error(`Please enter a valid cost per unit for Item #${i + 1}`);
+        return;
+      }
+    }
+
     // Get the selected supplier name
-    const selectedSupplier = suppliers.find(s => s.id === formData.supplier_id);
+    const selectedSupplier = suppliers.find((s) => s.id === supplierId);
     if (!selectedSupplier) {
       toast.error('Invalid supplier selected');
       return;
@@ -143,26 +230,22 @@ export default function PurchasesPage() {
 
     try {
       await createPurchase.mutateAsync({
-        supplier_id: formData.supplier_id,
+        supplier_id: supplierId,
         supplier_name: selectedSupplier.name,
-        purchase_date: formData.purchase_date,
-        items: [{
-          inventory_item_id: selectedItem.id,
-          quantity: parseFloat(formData.quantity),
-          unit_price: parseFloat(formData.cost),
-        }],
+        purchase_date: purchaseDate,
+        items: itemsList.map((it) => ({
+          inventory_item_id: it.item_id,
+          quantity: parseFloat(it.quantity),
+          unit_price: parseFloat(it.cost),
+        })),
       });
-      toast.success('Purchase logged successfully!');
+      toast.success(`Purchase logged successfully (${itemsList.length} items)!`);
       setIsLogPurchaseDialogOpen(false);
-      setFormData({
-        item_id: '',
-        supplier_id: '',
-        purchase_date: '',
-        quantity: '',
-        cost: '',
-      });
-    } catch (error) {
-      toast.error(error.response?.data?.error || 'Failed to log purchase');
+      setSupplierId('');
+      setPurchaseDate(getTodayString());
+      setItemsList([initialItemRow()]);
+    } catch (error: any) {
+      toast.error(error?.response?.data?.error || error?.message || 'Failed to log purchase');
     }
   };
 
@@ -195,114 +278,230 @@ export default function PurchasesPage() {
     <DashboardLayout title="Purchases" subtitle="Track grocery and supply purchases">
       {/* Dialog for Log Purchase */}
       <Dialog open={isLogPurchaseDialogOpen} onOpenChange={setIsLogPurchaseDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
+        <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col p-0 overflow-hidden">
+          <DialogHeader className="p-5 sm:p-6 pb-3 border-b border-border">
             <DialogTitle>Log New Purchase</DialogTitle>
-            <DialogDescription>Choose an inventory item to update its stock when the purchase is saved.</DialogDescription>
+            <DialogDescription>
+              Record items purchased from a supplier to update inventory stock automatically.
+            </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <label className="text-sm font-medium">Supplier *</label>
-                <Button 
-                  size="sm" 
-                  variant="ghost"
-                  onClick={() => setIsAddSupplierDialogOpen(true)}
-                >
-                  <Plus className="w-4 h-4 mr-1" /> Add New
-                </Button>
+
+          <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-6">
+            {/* Supplier & Purchase Date Row */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-sm font-medium">Supplier *</label>
+                  <Button 
+                    size="sm" 
+                    variant="ghost"
+                    type="button"
+                    onClick={() => setIsAddSupplierDialogOpen(true)}
+                    className="h-6 px-1.5 text-xs text-gold hover:text-gold-light"
+                  >
+                    <Plus className="w-3.5 h-3.5 mr-1" /> Add New
+                  </Button>
+                </div>
+                <Select value={supplierId} onValueChange={setSupplierId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a supplier" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {suppliers.map((supplier) => (
+                      <SelectItem key={supplier.id} value={supplier.id}>
+                        {supplier.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-              <Select value={formData.supplier_id} onValueChange={(value) => setFormData({ ...formData, supplier_id: value })}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a supplier" />
-                </SelectTrigger>
-                <SelectContent>
-                  {suppliers.map((supplier) => (
-                    <SelectItem key={supplier.id} value={supplier.id}>
-                      {supplier.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <label className="text-sm font-medium">Purchase Date *</label>
-              <Input
-                type="date"
-                value={formData.purchase_date}
-                onChange={(e) => setFormData({ ...formData, purchase_date: e.target.value })}
-              />
-            </div>
-            <div>
-              <label htmlFor="purchase-item" className="text-sm font-medium">Item Name *</label>
-              <Select
-                value={selectedItem?.id ?? ''}
-                onValueChange={(item_id) => setFormData(previous => ({ ...previous, item_id, quantity: '' }))}
-                disabled={inventory.isPending || inventory.isError || inventoryItems.length === 0}
-              >
-                <SelectTrigger id="purchase-item" aria-required="true">
-                  <SelectValue placeholder={inventory.isPending ? 'Loading inventory…' : 'Select an inventory item'} />
-                </SelectTrigger>
-                <SelectContent>
-                  {inventoryItems.map(item => (
-                    <SelectItem key={item.id} value={item.id}>{item.name} ({item.unit})</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {inventory.isError ? (
-                <Button variant="link" className="h-auto px-0 py-1" onClick={() => inventory.refetch()}>
-                  Could not load inventory. Try again.
-                </Button>
-              ) : !inventory.isPending && inventoryItems.length === 0 && (
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Add an item in <Link to="/inventory" className="text-gold underline">Inventory</Link> first.
-                </p>
-              )}
-            </div>
-            <div>
-              <label htmlFor="purchase-quantity" className="text-sm font-medium">Quantity *</label>
-              <div className="flex gap-2">
+
+              <div>
+                <label className="text-sm font-medium block mb-1.5">Purchase Date *</label>
                 <Input
-                  type="number"
-                  id="purchase-quantity"
-                  placeholder="e.g., 10"
-                  value={formData.quantity}
-                  onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
-                  className="flex-1 max-md:min-w-0"
+                  type="date"
+                  value={purchaseDate}
+                  onChange={(e) => setPurchaseDate(e.target.value)}
                 />
-                <span className="flex min-w-20 items-center justify-center rounded-md border border-input px-3 text-sm text-muted-foreground">
-                  {selectedItem?.unit ?? 'Unit'}
-                </span>
               </div>
             </div>
-            <div>
-              <label className="text-sm font-medium">Cost per Unit (₹) *</label>
-              <Input
-                type="number"
-                placeholder="e.g., 120"
-                value={formData.cost}
-                onChange={(e) => setFormData({ ...formData, cost: e.target.value })}
-              />
+
+            {/* Items Section Header */}
+            <div className="space-y-3 pt-1">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                    Purchased Items ({itemsList.length})
+                  </h4>
+                  <p className="text-xs text-muted-foreground">Add all items included in this bill/invoice</p>
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={addItemRow}
+                  className="h-8 text-xs border-dashed border-gold/60 text-gold hover:bg-gold/10"
+                >
+                  <Plus className="w-3.5 h-3.5 mr-1" /> Add Another Item
+                </Button>
+              </div>
+
+              {/* Items List */}
+              <div className="space-y-3">
+                {itemsList.map((row, index) => {
+                  const selectedInv = inventoryItems.find((it) => it.id === row.item_id);
+                  const subtotal = (parseFloat(row.quantity) || 0) * (parseFloat(row.cost) || 0);
+
+                  return (
+                    <div
+                      key={row.id}
+                      className="p-4 rounded-xl border border-border bg-card/60 hover:border-gold/40 transition-colors space-y-3 relative"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                          Item #{index + 1}
+                        </span>
+                        {itemsList.length > 1 && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removeItemRow(row.id)}
+                            className="h-7 px-2 text-destructive hover:bg-destructive/10 text-xs"
+                            title="Remove this item"
+                          >
+                            <Trash2 className="w-3.5 h-3.5 mr-1" /> Remove
+                          </Button>
+                        )}
+                      </div>
+
+                      {/* Item selection */}
+                      <div>
+                        <label className="text-xs font-medium text-muted-foreground block mb-1">
+                          Item Name *
+                        </label>
+                        <Select
+                          value={row.item_id}
+                          onValueChange={(val) => updateItemRow(row.id, 'item_id', val)}
+                          disabled={inventory.isPending || inventory.isError || inventoryItems.length === 0}
+                        >
+                          <SelectTrigger className="h-9">
+                            <SelectValue placeholder={inventory.isPending ? 'Loading inventory…' : 'Select an inventory item'} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {inventoryItems.map((item) => (
+                              <SelectItem key={item.id} value={item.id}>
+                                {item.name} ({item.unit})
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {!inventory.isPending && inventoryItems.length === 0 && (
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            Add an item in <Link to="/inventory" className="text-gold underline">Inventory</Link> first.
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Quantity, Cost per unit & Subtotal */}
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
+                        <div>
+                          <label className="text-xs font-medium text-muted-foreground block mb-1">
+                            Quantity *
+                          </label>
+                          <div className="flex gap-1.5">
+                            <Input
+                              type="number"
+                              step="any"
+                              min="0"
+                              placeholder="e.g. 50"
+                              value={row.quantity}
+                              onChange={(e) => updateItemRow(row.id, 'quantity', e.target.value)}
+                              className="h-9 text-sm"
+                            />
+                            <span className="h-9 min-w-16 px-2 flex items-center justify-center rounded-md border border-input bg-muted/70 text-xs text-muted-foreground font-medium shrink-0">
+                              {selectedInv?.unit || 'Unit'}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="text-xs font-medium text-muted-foreground block mb-1">
+                            Cost per Unit (₹) *
+                          </label>
+                          <Input
+                            type="number"
+                            step="any"
+                            min="0"
+                            placeholder="e.g. 120"
+                            value={row.cost}
+                            onChange={(e) => updateItemRow(row.id, 'cost', e.target.value)}
+                            className="h-9 text-sm"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="text-xs font-medium text-muted-foreground block mb-1">
+                            Subtotal
+                          </label>
+                          <div className="h-9 px-3 rounded-md bg-muted/60 border border-border flex items-center justify-between">
+                            <span className="text-xs text-muted-foreground">Amount:</span>
+                            <span className="text-sm font-bold text-foreground tabular-nums">
+                              ₹{subtotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Add another item button */}
+              <Button
+                type="button"
+                variant="outline"
+                onClick={addItemRow}
+                className="w-full border-dashed border-2 border-border hover:border-gold hover:text-gold hover:bg-gold/5 py-4 text-xs font-semibold"
+              >
+                <Plus className="w-4 h-4 mr-1.5" /> + Add Another Item
+              </Button>
+            </div>
+
+            {/* Total purchase amount card */}
+            <div className="p-4 rounded-xl bg-muted/50 border border-border flex items-center justify-between">
+              <div>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                  Total Purchase Amount
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {itemsList.length} {itemsList.length === 1 ? 'item' : 'items'} in this purchase
+                </p>
+              </div>
+              <span className="text-xl font-bold text-foreground tabular-nums">
+                ₹{totalPurchaseAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </span>
             </div>
           </div>
-          <DialogFooter>
+
+          <DialogFooter className="p-4 sm:p-6 pt-3 border-t border-border bg-slate-50/50 flex justify-between items-center sm:justify-end gap-2 shrink-0">
             <Button variant="outline" onClick={() => setIsLogPurchaseDialogOpen(false)}>
               Cancel
             </Button>
             <Button
-              className="bg-gold hover:bg-gold-light"
+              className="bg-gold hover:bg-gold-light text-primary-foreground font-semibold"
               onClick={handleLogPurchase}
-              disabled={isMockMode() || createPurchase.isPending || !selectedItem || inventory.isError}
+              disabled={isMockMode() || createPurchase.isPending || inventory.isError || inventoryItems.length === 0}
             >
               {createPurchase.isPending ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Logging...
+                  Logging Purchase...
                 </>
               ) : (
                 <>
                   <Plus className="w-4 h-4 mr-2" />
-                  Log Purchase
+                  Log Purchase ({itemsList.length})
                 </>
               )}
             </Button>
@@ -407,7 +606,7 @@ export default function PurchasesPage() {
 
         <Button 
           className="bg-gold hover:bg-gold-light text-primary-foreground"
-          onClick={() => setIsLogPurchaseDialogOpen(true)}
+          onClick={handleOpenLogPurchaseDialog}
         >
           <Plus className="w-4 h-4 mr-2" />
           Log Purchase
