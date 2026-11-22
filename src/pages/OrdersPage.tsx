@@ -3,7 +3,6 @@ import { catalogPhotoSource } from '@/lib/catalog-photo';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Select,
   SelectContent,
@@ -297,7 +296,7 @@ export default function OrdersPage() {
           </div>
 
           {/* Cart */}
-          <div className="card-premium overflow-hidden">
+          <div className="card-premium @container overflow-hidden">
             <div className="flex items-center gap-2 px-5 py-4 border-b border-border">
               <ShoppingBag className="size-4 text-gold" />
               <span className="font-semibold">Current Order</span>
@@ -308,78 +307,76 @@ export default function OrdersPage() {
               )}
             </div>
 
-            <ScrollArea className="max-h-72">
-              {cart.length === 0 ? (
-                <div className="px-5 py-10 text-center">
-                  <Receipt className="mx-auto mb-2 size-8 text-muted-foreground/30" />
-                  <p className="text-sm text-muted-foreground">No items added yet</p>
-                </div>
-              ) : (
-                <div className="divide-y divide-border">
-                  {cart.map((ci) => (
-                    <div key={ci.menu_item_id} className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-x-3 gap-y-2 px-4 py-3 sm:px-5">
-                      {(() => {
-                        const menuItem = (menuItems || []).find((m: any) => m.id === ci.menu_item_id);
-                        const imgUrl = menuItem?.image_url;
-                        return imgUrl && imgUrl !== '/placeholder.svg' ? (
-                          <img
-                            src={catalogPhotoSource(imgUrl)}
-                            alt=""
-                            className="size-11 rounded-lg object-cover shrink-0 border border-border/80"
-                            onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
-                          />
-                        ) : (
-                          <div className="size-11 rounded-lg bg-red-50 border border-red-100 flex items-center justify-center shrink-0">
-                            <UtensilsCrossed className="size-5 text-red-400" />
-                          </div>
-                        );
-                      })()}
-                      <div className="min-w-0">
-                        <p className="text-base font-semibold leading-snug wrap-anywhere sm:text-lg">
-                          {ci.name}
-                        </p>
-                        <p className="mt-0.5 text-base text-muted-foreground tabular-nums">
-                          {cartPrice.format(ci.unit_price)} × {ci.quantity}
-                        </p>
-                        {!menuItems.find((item) => item.id === ci.menu_item_id)?.ingredients?.length && (
-                          <p className="mt-0.5 text-xs text-amber-800">No recipe linked. Stock and cost won’t be recorded.</p>
-                        )}
-                      </div>
-                      <span className="text-lg font-bold tabular-nums">
-                        {cartPrice.format(ci.unit_price * ci.quantity)}
-                      </span>
-                      <div className="col-span-3 flex items-center justify-end gap-1.5">
-                        <button
-                          type="button"
-                          className="grid size-11 place-items-center rounded-lg border border-input bg-background hover:bg-secondary"
-                          onClick={() => changeQty(ci.menu_item_id, -1)}
-                          aria-label={`Remove one ${ci.name}`}
-                        >
-                          <Minus className="size-5" />
-                        </button>
-                        <span className="min-w-8 text-center text-base font-semibold tabular-nums">{ci.quantity}</span>
-                        <button
-                          type="button"
-                          className="grid size-11 place-items-center rounded-lg border border-input bg-background hover:bg-secondary"
-                          onClick={() => changeQty(ci.menu_item_id, 1)}
-                          aria-label={`Add one ${ci.name}`}
-                        >
-                          <Plus className="size-5" />
-                        </button>
-                        <button
-                          type="button"
-                          className="grid size-11 place-items-center rounded-lg text-destructive hover:bg-destructive/10"
-                          onClick={() => removeFromCart(ci.menu_item_id)}
-                          aria-label={`Remove ${ci.name}`}
-                        >
-                          <Trash2 className="size-4" />
-                        </button>
-                      </div>
+            {cart.length === 0 ? (
+              <div className="px-5 py-10 text-center">
+                <Receipt className="mx-auto mb-2 size-8 text-muted-foreground/30" />
+                <p className="text-sm text-muted-foreground">No items added yet</p>
+              </div>
+            ) : (
+              <ul aria-label="Current order items" className="divide-y divide-border">
+                {cart.map((ci) => (
+                  <li key={ci.menu_item_id} className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-2.5 gap-y-1 px-4 py-2.5 @min-[25rem]:grid-cols-[auto_minmax(0,1fr)_auto_auto] @min-[25rem]:px-5">
+                    {(() => {
+                      const menuItem = (menuItems || []).find((m: any) => m.id === ci.menu_item_id);
+                      const imgUrl = menuItem?.image_url;
+                      return imgUrl && imgUrl !== '/placeholder.svg' ? (
+                        <img
+                          src={catalogPhotoSource(imgUrl)}
+                          alt=""
+                          className="col-start-1 row-start-1 size-10 rounded-lg object-cover border border-border/80"
+                          onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
+                        />
+                      ) : (
+                        <div className="col-start-1 row-start-1 flex size-10 items-center justify-center rounded-lg border border-red-100 bg-red-50">
+                          <UtensilsCrossed className="size-5 text-red-400" />
+                        </div>
+                      );
+                    })()}
+                    <div className="col-start-2 row-start-1 min-w-0">
+                      <p className="text-base font-semibold leading-snug wrap-anywhere sm:text-lg">
+                        {ci.name}
+                      </p>
+                      <p className="mt-0.5 text-base text-muted-foreground tabular-nums">
+                        {cartPrice.format(ci.unit_price)} × {ci.quantity}
+                      </p>
+                      {!menuItems.find((item) => item.id === ci.menu_item_id)?.ingredients?.length && (
+                        <p className="mt-0.5 text-xs text-amber-800">No recipe linked. Stock and cost won’t be recorded.</p>
+                      )}
                     </div>
-                  ))}
-                </div>
-              )}
-            </ScrollArea>
+                    <span className="col-start-3 row-start-1 whitespace-nowrap text-lg font-bold tabular-nums">
+                      {cartPrice.format(ci.unit_price * ci.quantity)}
+                    </span>
+                    <div className="col-span-3 flex items-center justify-end gap-1 @min-[25rem]:col-span-1 @min-[25rem]:col-start-4 @min-[25rem]:row-start-1">
+                      <button
+                        type="button"
+                        className="grid size-9 place-items-center rounded-md border border-input bg-background hover:bg-secondary @min-[25rem]:size-8"
+                        onClick={() => changeQty(ci.menu_item_id, -1)}
+                        aria-label={`Remove one ${ci.name}`}
+                      >
+                        <Minus className="size-4" />
+                      </button>
+                      <span className="min-w-6 text-center text-sm font-semibold tabular-nums">{ci.quantity}</span>
+                      <button
+                        type="button"
+                        className="grid size-9 place-items-center rounded-md border border-input bg-background hover:bg-secondary @min-[25rem]:size-8"
+                        onClick={() => changeQty(ci.menu_item_id, 1)}
+                        aria-label={`Add one ${ci.name}`}
+                      >
+                        <Plus className="size-4" />
+                      </button>
+                      <button
+                        type="button"
+                        className="grid size-9 place-items-center rounded-md text-destructive hover:bg-destructive/10 @min-[25rem]:size-8"
+                        onClick={() => removeFromCart(ci.menu_item_id)}
+                        aria-label={`Remove ${ci.name}`}
+                      >
+                        <Trash2 className="size-4" />
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
 
             <div className={cn('px-5 py-4 space-y-3', cart.length > 0 && 'border-t border-border')}>
               <div className="flex items-center justify-between font-semibold text-lg">
