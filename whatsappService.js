@@ -43,6 +43,7 @@ export class WhatsAppWorker {
   client = null;
   status = 'disconnected';
   busy = false;
+  reconnectAt = 0;
 
   constructor(db) {
     this.db = db;
@@ -73,6 +74,10 @@ export class WhatsAppWorker {
     if (!client) return;
     if (logout && this.status === 'connected') await client.logout().catch(() => {});
     await client.destroy().catch(() => {});
+  }
+
+  retryBrowser() {
+    if (this.client && !this.reconnectAt) this.reconnectAt = Date.now() + 3000;
   }
 
   async connect(refresh = false) {
@@ -128,10 +133,16 @@ export class WhatsAppWorker {
         UPDATE whatsapp_settings SET command = 'idle' FROM pending WHERE id = 1 RETURNING pending.command
       `, [this.id]);
       if (request?.command === 'disconnect') {
+        this.reconnectAt = 0;
         await this.closeClient(true);
         await this.publish('disconnected');
       } else if (request?.command === 'refresh' || request?.command === 'start') {
+        this.reconnectAt = 0;
         await this.connect(request.command === 'refresh');
+      } else if (this.reconnectAt && Date.now() >= this.reconnectAt) {
+        this.reconnectAt = 0;
+        await this.closeClient();
+        await this.connect();
       }
       if (this.status === 'connected' && this.client) {
         await deliverQueuedMessage(this.db, async (to, text) => {

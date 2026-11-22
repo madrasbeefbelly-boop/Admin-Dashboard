@@ -49,5 +49,20 @@ async function stop(reason) {
 
 process.once('SIGINT', () => { void stop('Worker stopped'); });
 process.once('SIGTERM', () => { void stop('Worker stopped'); });
+// The WhatsApp Web library's navigation listener can reject outside initialize()
+// when scanning the QR replaces its browser frame.
+process.on('unhandledRejection', (error) => {
+  const navigationFailure = error instanceof Error &&
+    /detached Frame|Execution context was destroyed|Cannot find context|Target closed/i.test(error.message) &&
+    /whatsapp-web\.js[\\/]src[\\/]Client\.js/.test(error.stack ?? '');
+  if (navigationFailure) {
+    console.warn('[WhatsApp] Browser frame changed. Recovering the saved session.');
+    if (!stopping) worker.retryBrowser();
+    return;
+  }
+  console.error('[WhatsApp] Unexpected worker failure:', error);
+  process.exitCode = 1;
+  void stop('Recovering from an unexpected worker failure');
+});
 if (initial.command === 'idle' && initial.bot_status !== 'disconnected') await worker.connect();
 await worker.tick();
