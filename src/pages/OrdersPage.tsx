@@ -177,7 +177,7 @@ export default function OrdersPage() {
     if (nextStatus === 'Canceled') {
       const proceed = window.confirm(`Cancel order ${order.order_ref}?`);
       if (!proceed) return;
-      reason = window.prompt('Optional cancellation reason:') || 'Canceled by staff';
+      reason = 'Canceled by staff';
     }
 
     try {
