@@ -30,8 +30,12 @@ import {
   useSendWhatsAppTest,
 } from '@/hooks/api';
 import { isMockMode } from '@/lib/mock-mode';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function SettingsPage() {
+  const { isAdmin } = useAuth();
+  const canManageWhatsApp = isAdmin();
+  const mockMode = isMockMode();
   const [formData, setFormData] = useState({
     name: '',
     tagline: '',
@@ -45,7 +49,7 @@ export default function SettingsPage() {
   });
 
   // WhatsApp hooks & state
-  const { data: waStatus, isLoading: waLoading } = useWhatsAppStatus();
+  const { data: waStatus, isLoading: waLoading } = useWhatsAppStatus(canManageWhatsApp);
   const { mutate: startWhatsApp, isPending: isStartingWA } = useStartWhatsApp();
   const { mutate: saveWAConfig, isPending: isSavingWA } = useSaveWhatsAppConfig();
   const { mutate: disconnectWA, isPending: isDisconnectingWA } = useDisconnectWhatsApp();
@@ -58,16 +62,13 @@ export default function SettingsPage() {
     alertNewOrders: true,
   });
 
+  const savedPhone = waStatus?.targetPhone ?? '';
+  const savedGroup = waStatus?.targetGroupId ?? '';
+  const savedLowStock = waStatus?.alertLowStock ?? true;
+  const savedOrders = waStatus?.alertNewOrders ?? true;
   useEffect(() => {
-    if (waStatus) {
-      setWaConfig({
-        targetPhone: waStatus.targetPhone || '',
-        targetGroupId: waStatus.targetGroupId || '',
-        alertLowStock: waStatus.alertLowStock ?? true,
-        alertNewOrders: waStatus.alertNewOrders ?? true,
-      });
-    }
-  }, [waStatus]);
+    setWaConfig({ targetPhone: savedPhone, targetGroupId: savedGroup, alertLowStock: savedLowStock, alertNewOrders: savedOrders });
+  }, [savedPhone, savedGroup, savedLowStock, savedOrders]);
 
   const handleSaveWA = () => {
     saveWAConfig(waConfig, {
@@ -81,13 +82,13 @@ export default function SettingsPage() {
   };
 
   const handleSendTestWA = () => {
-    if (!waConfig.targetPhone.trim()) {
-      toast.error('Please enter a target WhatsApp number first.');
+    if (!waConfig.targetPhone.trim() && !savedGroup) {
+      toast.error('Enter a WhatsApp number or save a group ID first.');
       return;
     }
-    sendTestWA(waConfig.targetPhone, {
+    sendTestWA(waConfig.targetPhone.trim() || undefined, {
       onSuccess: () => {
-        toast.success(`Test WhatsApp message sent to ${waConfig.targetPhone}!`);
+        toast.success('Test message queued. Its status will update here.');
       },
       onError: (err: any) => {
         toast.error(err?.response?.data?.error || 'Failed to send WhatsApp message. Check connection.');
@@ -98,7 +99,7 @@ export default function SettingsPage() {
   const handleDisconnectWA = () => {
     disconnectWA(undefined, {
       onSuccess: () => {
-        toast.success('WhatsApp session disconnected');
+        toast.success('WhatsApp unlink requested');
       },
       onError: () => {
         toast.error('Failed to disconnect WhatsApp');
@@ -106,10 +107,10 @@ export default function SettingsPage() {
     });
   };
 
-  const handleStartWhatsApp = () => {
-    startWhatsApp(undefined, {
+  const handleStartWhatsApp = (refresh: boolean) => {
+    startWhatsApp(refresh, {
       onSuccess: () => {
-        toast.success('Starting WhatsApp bot... please wait a moment for the QR code.');
+        toast.success('Requested a new WhatsApp QR code.');
       },
       onError: (err: any) => {
         toast.error(err?.response?.data?.error || err?.message || 'Failed to trigger WhatsApp bot');
@@ -279,7 +280,7 @@ export default function SettingsPage() {
           </div>
 
           {/* Right Column: WhatsApp Bot & Mobile Notifications */}
-          <div className="card-premium p-6">
+          {canManageWhatsApp && <div className="card-premium p-6">
             <div className="flex items-start justify-between gap-4 mb-6 max-sm:flex-col">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-600">
@@ -318,7 +319,7 @@ export default function SettingsPage() {
                   </span>
                 ) : (
                   <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600">
-                    Not Connected
+                    {waStatus?.status === 'offline' ? 'Worker Offline' : 'Not Connected'}
                   </span>
                 )}
               </div>
@@ -348,7 +349,7 @@ export default function SettingsPage() {
                       variant="outline"
                       size="sm"
                       onClick={handleSendTestWA}
-                      disabled={isSendingTestWA}
+                      disabled={mockMode || isSendingTestWA || waStatus.lastTest?.status === 'queued'}
                       className="text-xs"
                     >
                       {isSendingTestWA ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Send className="w-3.5 h-3.5 mr-1.5" />}
@@ -359,7 +360,7 @@ export default function SettingsPage() {
                       variant="outline"
                       size="sm"
                       onClick={handleDisconnectWA}
-                      disabled={isDisconnectingWA}
+                      disabled={mockMode || isDisconnectingWA}
                       className="text-xs text-red-600 hover:text-red-700 hover:bg-red-50"
                     >
                       {isDisconnectingWA ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Unlink className="w-3.5 h-3.5 mr-1.5" />}
@@ -391,8 +392,8 @@ export default function SettingsPage() {
                       type="button"
                       variant="outline"
                       size="sm"
-                      onClick={handleStartWhatsApp}
-                      disabled={isStartingWA}
+                      onClick={() => handleStartWhatsApp(true)}
+                      disabled={mockMode || isStartingWA}
                       className="text-xs h-8"
                     >
                       <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${isStartingWA ? 'animate-spin' : ''}`} />
@@ -404,25 +405,43 @@ export default function SettingsPage() {
                 <div className="p-8 text-center bg-slate-50 border border-dashed border-slate-300 rounded-2xl">
                   <Loader2 className="w-8 h-8 text-emerald-600 animate-spin mx-auto mb-3" />
                   <p className="text-sm font-semibold text-slate-800">Starting WhatsApp Web Session...</p>
-                  <p className="text-xs text-slate-500 mt-1">Generating your secure QR code. Please wait a few seconds.</p>
+                  <p className="text-xs text-slate-600 mt-1">Waiting for a fresh QR from WhatsApp Web.</p>
+                </div>
+              ) : waStatus?.status === 'offline' ? (
+                <div className="rounded-2xl border border-input bg-background p-4">
+                  <p className="text-sm font-semibold">The WhatsApp worker is offline</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Alerts stay queued until the worker is running and WhatsApp is linked.</p>
                 </div>
               ) : (
                 <div className="p-6 text-center bg-slate-50 border border-dashed border-slate-300 rounded-2xl">
                   <Smartphone className="w-8 h-8 text-slate-400 mx-auto mb-2" />
-                  <p className="text-sm font-semibold text-slate-800">WhatsApp Bot is not linked</p>
+                  <p className="text-sm font-semibold text-slate-800">{waStatus?.status === 'qr_expired' ? 'The QR code expired' : 'WhatsApp Bot is not linked'}</p>
                   <p className="text-xs text-slate-500 mb-4 max-w-sm mx-auto">
-                    Click below to generate a QR code and connect your restaurant phone.
+                    {waStatus?.lastError || 'Generate a QR code to link your restaurant phone.'}
                   </p>
                   <Button
                     type="button"
-                    onClick={handleStartWhatsApp}
-                    disabled={isStartingWA}
+                    onClick={() => handleStartWhatsApp(waStatus?.status === 'qr_expired')}
+                    disabled={mockMode || waLoading || isStartingWA}
                     className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold"
                   >
                     {isStartingWA ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <QrCode className="w-4 h-4 mr-2" />}
-                    Connect WhatsApp & Show QR Code
+                    {waStatus?.status === 'qr_expired' ? 'Refresh QR Code' : 'Connect WhatsApp & Show QR Code'}
                   </Button>
                 </div>
+              )}
+              {waStatus?.lastTest && (
+                <p role="status" className="mt-3 text-xs text-muted-foreground">
+                  {waStatus.lastTest.status === 'sent' ? 'WhatsApp accepted the last test message.'
+                    : waStatus.lastTest.status === 'failed' ? 'The last test could not be sent. Check the receiver and try again.'
+                    : 'The test message is queued.'}
+                </p>
+              )}
+              {waStatus?.delivery?.pending > 0 && (
+                <p className="mt-2 text-xs text-muted-foreground">{waStatus.delivery.pending} alerts waiting to send.</p>
+              )}
+              {waStatus?.delivery?.failed > 0 && (
+                <p className="mt-2 text-xs text-destructive">{waStatus.delivery.failed} alerts failed in the last 7 days.</p>
               )}
             </div>
 
@@ -500,7 +519,7 @@ export default function SettingsPage() {
                 <Button
                   type="button"
                   onClick={handleSaveWA}
-                  disabled={isSavingWA}
+                  disabled={mockMode || isSavingWA}
                   className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold"
                 >
                   {isSavingWA ? <Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" /> : null}
@@ -508,7 +527,7 @@ export default function SettingsPage() {
                 </Button>
               </div>
             </div>
-          </div>
+          </div>}
         </div>
 
         {/* Notifications / In-App Alert Preferences */}

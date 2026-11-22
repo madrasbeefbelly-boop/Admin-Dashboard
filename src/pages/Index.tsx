@@ -121,7 +121,6 @@ export default function Index() {
                 value={customersCount}
                 icon={Users}
                 dataPoints={past7DaysData.customers}
-                chartStyle="bars"
                 chartLabel="Unique named customers per day over the last 7 days"
               />
               <StatCard

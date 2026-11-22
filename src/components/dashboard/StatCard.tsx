@@ -1,4 +1,3 @@
-import { useId } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatStatLabel, type StatPoint } from '@/lib/stat-series';
@@ -10,100 +9,37 @@ export interface StatCardProps {
   icon: LucideIcon;
   dataPoints?: StatPoint[];
   chartLabel?: string;
-  chartStyle?: 'line' | 'bars';
   formatValue?: (value: number) => string;
   accent?: string;
 }
 
-/**
- * Converts an array of real data numbers into a smooth SVG bezier path
- */
-function pointsToPath(points: number[] = [], width = 200, height = 40): { path: string; fillPath: string } {
-  const paddingY = 8;
-  const usableHeight = height - paddingY * 2;
-  const baselineY = height - paddingY;
-
-  if (!points || points.length === 0) {
-    const flat = `M 0,${baselineY} L ${width},${baselineY}`;
-    return { path: flat, fillPath: `${flat} L ${width},${height} L 0,${height} Z` };
-  }
-
-  const max = Math.max(...points);
-  const min = Math.min(...points);
-  const range = max - min;
-
-  // If all values are identical (e.g. all 0, or constant count)
-  if (range === 0) {
-    const y = max === 0 ? baselineY : height / 2;
-    const flat = `M 0,${y.toFixed(1)} L ${width},${y.toFixed(1)}`;
-    return { path: flat, fillPath: `${flat} L ${width},${height} L 0,${height} Z` };
-  }
-
-  const coords = points.map((val, idx) => {
-    const x = (idx / (points.length - 1)) * width;
-    const y = baselineY - ((val - min) / range) * usableHeight;
-    return { x, y };
-  });
-
-  let path = `M ${coords[0].x.toFixed(1)},${coords[0].y.toFixed(1)}`;
-  for (let i = 0; i < coords.length - 1; i++) {
-    const p0 = coords[i];
-    const p1 = coords[i + 1];
-    const cp1x = (p0.x + p1.x) / 2;
-    const cp1y = p0.y;
-    const cp2x = (p0.x + p1.x) / 2;
-    const cp2y = p1.y;
-    path += ` C ${cp1x.toFixed(1)},${cp1y.toFixed(1)} ${cp2x.toFixed(1)},${cp2y.toFixed(1)} ${p1.x.toFixed(1)},${p1.y.toFixed(1)}`;
-  }
-
-  const fillPath = `${path} L ${width},${height} L 0,${height} Z`;
-  return { path, fillPath };
-}
-
-function StatCardChart({ values, accent, className, bars }: {
-  values: number[];
-  accent: string;
-  className: string;
-  bars: boolean;
-}) {
-  const gradientId = useId();
+function StatCardChart({ values, accent, className }: { values: number[]; accent: string; className: string }) {
   const hasData = values.length > 0;
-  if (bars && hasData) {
-    const peak = Math.max(1, ...values);
-    const slot = 200 / values.length;
-    return (
-      <svg className={cn(className, accent)} viewBox="0 0 200 40" preserveAspectRatio="none" aria-hidden="true">
-        {values.map((value, index) => {
-          const height = value === 0 ? 1 : Math.max(2, value / peak * 30);
-          return <rect key={index} x={index * slot + slot * 0.16} y={34 - height}
-            width={slot * 0.68} height={height} rx="2" fill="currentColor" opacity={value === 0 ? 0.4 : 0.86} />;
-        })}
-      </svg>
-    );
-  }
-
-  const { path, fillPath } = pointsToPath(values);
+  const points = hasData ? values : [0, 0, 0, 0, 0];
+  const minimum = Math.min(0, ...points);
+  const maximum = Math.max(0, ...points);
+  const range = maximum - minimum || 1;
+  const baseline = 34 - (-minimum / range) * 28;
+  const slot = 200 / points.length;
+  const width = Math.min(slot * 0.68, 36);
 
   return (
-    <svg
-      className={cn(className, accent)}
-      viewBox="0 0 200 40"
-      preserveAspectRatio="none"
-      aria-hidden="true"
-    >
-      {hasData && (
-        <>
-          <defs>
-            <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="100%">
-              <stop stopColor="currentColor" stopOpacity=".16" />
-              <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
-            </linearGradient>
-          </defs>
-          <path d={fillPath} fill={`url(#${gradientId})`} />
-        </>
-      )}
-      <path d={path} fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"
-        strokeDasharray={hasData ? undefined : '2 3'} vectorEffect="non-scaling-stroke" />
+    <svg className={cn(className, accent)} viewBox="0 0 200 40" preserveAspectRatio="none" aria-hidden="true">
+      {points.map((value, index) => {
+        const height = value === 0 ? 1.5 : Math.max(2, Math.abs(value) / range * 28);
+        return (
+          <rect
+            key={index}
+            x={index * slot + (slot - width) / 2}
+            y={value < 0 ? baseline : baseline - height}
+            width={width}
+            height={height}
+            rx={Math.min(1.5, width / 3)}
+            fill="currentColor"
+            opacity={value === 0 ? 0.32 : 0.86}
+          />
+        );
+      })}
     </svg>
   );
 }
@@ -111,7 +47,7 @@ function StatCardChart({ values, accent, className, bars }: {
 const formatNumber = new Intl.NumberFormat('en-IN', { maximumFractionDigits: 2 }).format;
 
 export function StatCard({
-  title, value, icon: Icon, dataPoints, chartLabel, chartStyle,
+  title, value, icon: Icon, dataPoints, chartLabel,
   accent = 'text-primary', formatValue = formatNumber,
 }: StatCardProps) {
   const content = (
@@ -127,7 +63,6 @@ export function StatCard({
   if (!dataPoints) return <div className="stat-card">{content}</div>;
 
   const values = dataPoints.map((point) => point.value);
-  const bars = chartStyle === 'bars';
   return (
     <ChartDetails
       title={title}
@@ -136,14 +71,14 @@ export function StatCard({
         <button type="button" aria-label={`View ${title} details`}
           className="stat-card w-full cursor-pointer text-left hover:border-primary/50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
           {content}
-          <StatCardChart values={values} accent={accent} className="stat-card-chart" bars={bars} />
+          <StatCardChart values={values} accent={accent} className="stat-card-chart" />
         </button>
       )}
     >
       {dataPoints.length ? (
         <>
           <div className="rounded-lg border border-input bg-background px-3 py-1">
-            <StatCardChart values={values} accent={accent} className="block h-24 w-full" bars={bars} />
+            <StatCardChart values={values} accent={accent} className="block h-24 w-full" />
           </div>
           <table className="w-full table-fixed text-left text-sm">
             <thead className="text-xs text-muted-foreground">

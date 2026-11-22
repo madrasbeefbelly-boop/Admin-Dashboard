@@ -46,6 +46,7 @@ import { newOrderTarget } from '@/components/layout/navigation';
 import type { OrderItem } from '@/types';
 
 const currency = new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' });
+const cartPrice = new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: 0, maximumFractionDigits: 2 });
 
 function formatPrice(value: string | number | null | undefined): number | null {
   if (value == null) return null;
@@ -275,9 +276,9 @@ export default function OrdersPage() {
                               <UtensilsCrossed className="size-3.5 text-red-400" />
                             </span>
                           )}
-                          <span className="min-w-0 max-md:flex-1 max-md:whitespace-normal max-md:wrap-anywhere md:truncate">{item.name}</span>
-                          <span className="ml-auto shrink-0 whitespace-nowrap pl-2 text-muted-foreground tabular-nums">
-                            {price != null ? `₹${price.toFixed(0)}` : '—'}
+                          <span className="min-w-0 text-base font-medium max-md:flex-1 max-md:whitespace-normal max-md:wrap-anywhere md:truncate">{item.name}</span>
+                          <span className="ml-auto shrink-0 whitespace-nowrap pl-2 text-base font-semibold tabular-nums">
+                            {price != null ? cartPrice.format(price) : '—'}
                           </span>
                         </span>
                       </SelectItem>
@@ -316,7 +317,7 @@ export default function OrdersPage() {
               ) : (
                 <div className="divide-y divide-border">
                   {cart.map((ci) => (
-                    <div key={ci.menu_item_id} className="flex items-center gap-3 px-5 py-3">
+                    <div key={ci.menu_item_id} className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-x-3 gap-y-2 px-4 py-3 sm:px-5">
                       {(() => {
                         const menuItem = (menuItems || []).find((m: any) => m.id === ci.menu_item_id);
                         const imgUrl = menuItem?.image_url;
@@ -333,42 +334,45 @@ export default function OrdersPage() {
                           </div>
                         );
                       })()}
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium leading-tight [overflow-wrap:anywhere]">
+                      <div className="min-w-0">
+                        <p className="text-base font-semibold leading-snug wrap-anywhere sm:text-lg">
                           {ci.name}
                         </p>
-                        <p className="text-xs text-muted-foreground tabular-nums mt-0.5">
-                          ₹{ci.unit_price.toFixed(0)} × {ci.quantity}
+                        <p className="mt-0.5 text-base text-muted-foreground tabular-nums">
+                          {cartPrice.format(ci.unit_price)} × {ci.quantity}
                         </p>
                         {!menuItems.find((item) => item.id === ci.menu_item_id)?.ingredients?.length && (
                           <p className="mt-0.5 text-xs text-amber-800">No recipe linked. Stock and cost won’t be recorded.</p>
                         )}
                       </div>
-                      <span className="font-semibold tabular-nums text-sm shrink-0">
-                        ₹{(ci.unit_price * ci.quantity).toFixed(0)}
+                      <span className="text-lg font-bold tabular-nums">
+                        {cartPrice.format(ci.unit_price * ci.quantity)}
                       </span>
-                      <div className="flex items-center gap-1 shrink-0">
+                      <div className="col-span-3 flex items-center justify-end gap-1.5">
                         <button
-                          className="size-6 rounded flex items-center justify-center hover:bg-secondary"
+                          type="button"
+                          className="grid size-11 place-items-center rounded-lg border border-input bg-background hover:bg-secondary"
                           onClick={() => changeQty(ci.menu_item_id, -1)}
-                          aria-label="Remove one"
+                          aria-label={`Remove one ${ci.name}`}
                         >
-                          <Minus className="size-3" />
+                          <Minus className="size-5" />
                         </button>
-                        <span className="text-xs w-4 text-center tabular-nums">{ci.quantity}</span>
+                        <span className="min-w-8 text-center text-base font-semibold tabular-nums">{ci.quantity}</span>
                         <button
-                          className="size-6 rounded flex items-center justify-center hover:bg-secondary"
+                          type="button"
+                          className="grid size-11 place-items-center rounded-lg border border-input bg-background hover:bg-secondary"
                           onClick={() => changeQty(ci.menu_item_id, 1)}
-                          aria-label="Add one"
+                          aria-label={`Add one ${ci.name}`}
                         >
-                          <Plus className="size-3" />
+                          <Plus className="size-5" />
                         </button>
                         <button
-                          className="size-6 rounded flex items-center justify-center text-destructive hover:bg-destructive/10"
+                          type="button"
+                          className="grid size-11 place-items-center rounded-lg text-destructive hover:bg-destructive/10"
                           onClick={() => removeFromCart(ci.menu_item_id)}
                           aria-label={`Remove ${ci.name}`}
                         >
-                          <Trash2 className="size-3" />
+                          <Trash2 className="size-4" />
                         </button>
                       </div>
                     </div>
@@ -519,7 +523,7 @@ export default function OrdersPage() {
 
                   {/* Order Items Breakdown */}
                   {Array.isArray(order.items) && order.items.length > 0 ? (
-                    <ul className="space-y-1.5 text-xs border-l-2 border-red-200/60 pl-2.5">
+                    <ul className="space-y-1.5 text-sm border-l-2 border-red-200/60 pl-2.5">
                       {order.items.map((i: any, idx: number) => (
                         <li key={idx} className="flex items-center justify-between gap-3 text-muted-foreground">
                           <span className="flex items-center gap-2 min-w-0">
@@ -539,11 +543,11 @@ export default function OrdersPage() {
                                 </div>
                               );
                             })()}
-                            <span className="truncate">{i.name}</span>{' '}
+                            <span className="font-medium wrap-anywhere">{i.name}</span>{' '}
                             <span className="font-semibold text-foreground shrink-0">×{i.quantity}</span>
                           </span>
                           {Number(i.line_total ?? (i.unit_price * i.quantity)) > 0 && (
-                            <span className="tabular-nums shrink-0">
+                            <span className="shrink-0 font-semibold tabular-nums">
                               ₹{Number(i.line_total ?? (i.unit_price * i.quantity)).toFixed(2)}
                             </span>
                           )}

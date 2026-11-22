@@ -373,9 +373,10 @@ export const useAdjustStock = () => {
 // WHATSAPP BOT HOOKS
 // ============================================================================
 
-export const useWhatsAppStatus = () => {
+export const useWhatsAppStatus = (enabled: boolean) => {
   return useQuery({
     queryKey: ['whatsappStatus'],
+    enabled,
     queryFn: async () => {
       const response = await whatsappAPI.getStatus();
       return response.data.data;
@@ -383,7 +384,7 @@ export const useWhatsAppStatus = () => {
     refetchInterval: (query) => {
       const status = query.state.data?.status;
       // Fast polling (2.5s) when QR code is waiting to be scanned or initializing
-      if (status === 'qr_ready' || status === 'initializing') {
+      if (status === 'qr_ready' || status === 'qr_expired' || status === 'initializing' || query.state.data?.lastTest?.status === 'queued') {
         return 2500;
       }
       return 15000;
@@ -394,7 +395,7 @@ export const useWhatsAppStatus = () => {
 export const useStartWhatsApp = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: () => whatsappAPI.start(),
+    mutationFn: (refresh: boolean) => whatsappAPI.start(refresh),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['whatsappStatus'] });
     },
@@ -427,7 +428,9 @@ export const useDisconnectWhatsApp = () => {
 };
 
 export const useSendWhatsAppTest = () => {
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (phone?: string) => whatsappAPI.sendTest(phone),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['whatsappStatus'] }),
   });
 };

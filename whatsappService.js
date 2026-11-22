@@ -1,355 +1,146 @@
-/**
- * Madras Beef Belly - WhatsApp Notification Service
- * Powered by whatsapp-web.js and LocalAuth
- */
-
+import { randomUUID } from 'node:crypto';
+import { existsSync } from 'node:fs';
+import path from 'node:path';
 import pkg from 'whatsapp-web.js';
-const { Client, LocalAuth } = pkg;
 import QRCode from 'qrcode';
-import fs from 'node:fs';
 
-const CHROME_PATH = 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
+const { Client, LocalAuth } = pkg;
+const windowsChrome = 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
 
-class WhatsAppService {
-  constructor() {
-    this.client = null;
-    this.status = 'disconnected'; // 'disconnected' | 'initializing' | 'qr_ready' | 'connected'
-    this.qrCode = null;
-    this.clientInfo = null;
-    this.lastError = null;
-    this.isInitializing = false;
-    this.pool = null;
-    this.workerInterval = null;
+export async function deliverQueuedMessage(db, send) {
+  const { rows: [job] } = await db.query(`
+    WITH next_job AS (
+      SELECT id FROM whatsapp_outbox
+      WHERE sent_at IS NULL AND failed_at IS NULL AND next_attempt_at <= now()
+      ORDER BY next_attempt_at, id FOR UPDATE SKIP LOCKED LIMIT 1
+    )
+    UPDATE whatsapp_outbox AS job
+    SET attempts = job.attempts + 1, next_attempt_at = now() + interval '2 minutes'
+    FROM next_job WHERE job.id = next_job.id
+    RETURNING job.id, job.target, job.message, job.attempts
+  `);
+  if (!job) return false;
+  try {
+    await send(job.target, job.message);
+  } catch (error) {
+    const delay = Math.min(300, 5 * 2 ** job.attempts);
+    await db.query(`
+      UPDATE whatsapp_outbox
+      SET failed_at = CASE WHEN attempts >= 6 THEN now() END,
+        message = CASE WHEN attempts >= 6 THEN '' ELSE message END,
+        next_attempt_at = now() + $3 * interval '1 second'
+      WHERE id = $1 AND attempts = $2
+    `, [job.id, job.attempts, delay]);
+    console.error('[WhatsApp] Delivery attempt failed for job', job.id, error.name);
+    return true;
   }
-
-  // Set database pool and start background listener if on persistent machine
-  setPool(pool) {
-    this.pool = pool;
-    if (!this.workerInterval) {
-      this.startCommandListener();
-    }
-  }
-
-  // Sync current bot state to PostgreSQL so Vercel frontend has instant access
-  async syncToDb() {
-    if (!this.pool) return;
-    try {
-      await this.pool.query(
-        `UPDATE whatsapp_settings 
-         SET bot_status = $1, qr_code = $2, bot_phone = $3, last_error = $4, updated_at = NOW() 
-         WHERE id = 1`,
-        [
-          this.status,
-          this.qrCode,
-          this.clientInfo?.wid || this.clientInfo?.phone || null,
-          this.lastError
-        ]
-      );
-    } catch (err) {
-      console.error('[WhatsApp] DB sync error:', err.message);
-    }
-  }
-
-  // Background listener on DB commands (enables Vercel to trigger local bot)
-  startCommandListener() {
-    if (this.workerInterval) return;
-    this.workerInterval = setInterval(async () => {
-      if (!this.pool) return;
-      try {
-        const { rows } = await this.pool.query('SELECT command, target_phone FROM whatsapp_settings WHERE id = 1');
-        if (!rows.length || !rows[0].command || rows[0].command === 'idle') return;
-
-        const cmd = rows[0].command;
-        const phone = rows[0].target_phone;
-
-        // Reset command to idle immediately to prevent duplicate runs
-        await this.pool.query("UPDATE whatsapp_settings SET command = 'idle' WHERE id = 1");
-
-        console.log(`[WhatsApp Worker] Picked up command from DB: ${cmd}`);
-        if (cmd === 'start') {
-          await this.start();
-        } else if (cmd === 'disconnect') {
-          await this.disconnect();
-        } else if (cmd === 'test' && phone) {
-          await this.sendTestMessage(phone);
-        }
-      } catch (err) {
-        // Silently continue polling
-      }
-    }, 2500);
-  }
-
-  // Get current status
-  getStatus() {
-    return {
-      status: this.status,
-      isConnected: this.status === 'connected',
-      isInitializing: this.isInitializing,
-      qrCode: this.qrCode,
-      info: this.clientInfo,
-      lastError: this.lastError
-    };
-  }
-
-  // Start WhatsApp Client
-  async start() {
-    if (this.status === 'connected') {
-      console.log('WhatsApp Client is already connected.');
-      return;
-    }
-    if (this.isInitializing) {
-      console.log('WhatsApp Client is already initializing...');
-      return;
-    }
-
-    try {
-      this.isInitializing = true;
-      this.status = 'initializing';
-      this.lastError = null;
-      this.qrCode = null;
-
-      const puppeteerOpts = {
-        headless: true,
-        args: [
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage',
-          '--disable-accelerated-2d-canvas',
-          '--no-first-run',
-          '--no-zygote',
-          '--disable-gpu',
-          '--disable-crash-reporter',
-          '--disable-breakpad',
-          '--no-crash-upload'
-        ]
-      };
-
-      if (fs.existsSync(CHROME_PATH)) {
-        puppeteerOpts.executablePath = CHROME_PATH;
-      }
-
-      this.client = new Client({
-        authStrategy: new LocalAuth({
-          dataPath: './.wwebjs_auth'
-        }),
-        puppeteer: puppeteerOpts
-      });
-
-      this.client.on('qr', async (qr) => {
-        try {
-          console.log('[WhatsApp] QR Code received from WhatsApp Web');
-          this.qrCode = await QRCode.toDataURL(qr, { margin: 2, scale: 6 });
-          this.status = 'qr_ready';
-          this.isInitializing = false;
-          await this.syncToDb();
-        } catch (qrErr) {
-          console.error('[WhatsApp] QR generation error:', qrErr);
-        }
-      });
-
-      this.client.on('ready', async () => {
-        console.log('[WhatsApp] Client is READY & connected!');
-        this.status = 'connected';
-        this.isInitializing = false;
-        this.qrCode = null;
-        this.clientInfo = {
-          pushname: this.client.info?.pushname || 'Madras Beef Belly',
-          wid: this.client.info?.wid?.user || '',
-          phone: this.client.info?.wid?.user || ''
-        };
-        await this.syncToDb();
-      });
-
-      this.client.on('authenticated', async () => {
-        console.log('[WhatsApp] Authenticated successfully');
-        this.status = 'connected';
-        this.qrCode = null;
-        await this.syncToDb();
-      });
-
-      this.client.on('auth_failure', async (msg) => {
-        console.error('[WhatsApp] Authentication failure:', msg);
-        this.status = 'disconnected';
-        this.isInitializing = false;
-        this.lastError = typeof msg === 'string' ? msg : 'Authentication failed';
-        await this.syncToDb();
-      });
-
-      this.client.on('disconnected', async (reason) => {
-        console.log('[WhatsApp] Client disconnected:', reason);
-        this.status = 'disconnected';
-        this.isInitializing = false;
-        this.qrCode = null;
-        this.clientInfo = null;
-        await this.syncToDb();
-      });
-
-      await this.client.initialize();
-    } catch (err) {
-      console.error('[WhatsApp] Init error:', err);
-      this.status = 'disconnected';
-      this.isInitializing = false;
-      this.lastError = err.message;
-      await this.syncToDb();
-    }
-  }
-
-  // Disconnect & logout
-  async disconnect() {
-    try {
-      if (this.client) {
-        await this.client.logout().catch(() => {});
-        await this.client.destroy().catch(() => {});
-      }
-      this.client = null;
-      this.status = 'disconnected';
-      this.qrCode = null;
-      this.clientInfo = null;
-      this.isInitializing = false;
-      console.log('[WhatsApp] Client disconnected & destroyed');
-      await this.syncToDb();
-      return { success: true };
-    } catch (err) {
-      console.error('[WhatsApp] Disconnect error:', err);
-      await this.syncToDb();
-      return { success: false, error: err.message };
-    }
-  }
-
-  // Format phone number to WhatsApp JID (Chat ID)
-  formatChatId(phone) {
-    if (!phone) return null;
-    let clean = String(phone).replace(/\D/g, '');
-    if (!clean) return null;
-
-    // If already has group suffix
-    if (phone.endsWith('@g.us')) return phone;
-    if (phone.endsWith('@c.us')) return phone;
-
-    // If 10 digits Indian mobile number (e.g., 9876543210), prepend 91
-    if (clean.length === 10) {
-      clean = '91' + clean;
-    }
-
-    return `${clean}@c.us`;
-  }
-
-  // Send raw message
-  async sendMessage(to, message) {
-    if (this.status !== 'connected' || !this.client) {
-      throw new Error('WhatsApp client is not connected. Please scan QR code in Settings.');
-    }
-
-    const chatId = this.formatChatId(to);
-    if (!chatId) {
-      throw new Error('Invalid phone number provided for WhatsApp');
-    }
-
-    const res = await this.client.sendMessage(chatId, message);
-    return { success: true, messageId: res.id?._serialized };
-  }
-
-  // Send New Order Notification
-  async notifyNewOrder(order, pool) {
-    try {
-      if (this.status !== 'connected' || !this.client) return;
-
-      const settingsRes = await pool.query('SELECT * FROM whatsapp_settings WHERE id = 1');
-      const settings = settingsRes.rows[0];
-      if (!settings || !settings.alert_new_orders) return;
-
-      const target = settings.target_phone || settings.target_group_id;
-      if (!target) return;
-
-      const itemsList = Array.isArray(order.items) && order.items.length > 0
-        ? order.items.map((it) => `• ${it.quantity}x ${it.name || it.item_name} (₹${Number(it.line_total || it.unit_price * it.quantity).toFixed(0)})`).join('\n')
-        : '• Order items recorded';
-
-      const timeStr = new Date().toLocaleTimeString('en-IN', {
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: true
-      });
-
-      const message = 
-`🔔 *MADRAS BEEF BELLY — NEW ORDER*
-
-📋 *Order:* ${order.order_ref || order.id}
-🪑 *Table:* ${order.table_no ? 'Table ' + order.table_no : 'Takeaway / Walk-in'}
-👤 *Customer:* ${order.customer_name || 'Customer'}
-💳 *Payment:* ${order.payment_method || 'Cash'}
-
-*Items Ordered:*
-${itemsList}
-
-💰 *Total:* ₹${Number(order.total_amount).toFixed(2)}
-🕒 *Time:* ${timeStr}
-🚀 *Status:* ${order.status || 'New'}`;
-
-      if (settings.target_phone) {
-        await this.sendMessage(settings.target_phone, message).catch(err => console.error('[WhatsApp] Order send error:', err.message));
-      }
-      if (settings.target_group_id && settings.target_group_id !== settings.target_phone) {
-        await this.sendMessage(settings.target_group_id, message).catch(err => console.error('[WhatsApp] Group order send error:', err.message));
-      }
-    } catch (err) {
-      console.error('[WhatsApp] notifyNewOrder error:', err);
-    }
-  }
-
-  // Send Low Stock Notification
-  async notifyLowStock(ingredient, pool) {
-    try {
-      if (this.status !== 'connected' || !this.client) return;
-
-      const settingsRes = await pool.query('SELECT * FROM whatsapp_settings WHERE id = 1');
-      const settings = settingsRes.rows[0];
-      if (!settings || !settings.alert_low_stock) return;
-
-      const target = settings.target_phone || settings.target_group_id;
-      if (!target) return;
-
-      const message = 
-`⚠️ *MADRAS BEEF BELLY — LOW STOCK ALERT*
-
-🥩 *Ingredient:* ${ingredient.name}
-📦 *Current Stock:* ${Number(ingredient.current_stock).toFixed(2)} ${ingredient.unit}
-📉 *Minimum Required:* ${Number(ingredient.minimum_stock).toFixed(2)} ${ingredient.unit}
-🏷️ *Category:* ${ingredient.category || 'General'}
-
-_Please purchase or restock this ingredient soon to keep orders flowing!_`;
-
-      if (settings.target_phone) {
-        await this.sendMessage(settings.target_phone, message).catch(err => console.error('[WhatsApp] Low-stock send error:', err.message));
-      }
-      if (settings.target_group_id && settings.target_group_id !== settings.target_phone) {
-        await this.sendMessage(settings.target_group_id, message).catch(err => console.error('[WhatsApp] Group low-stock send error:', err.message));
-      }
-    } catch (err) {
-      console.error('[WhatsApp] notifyLowStock error:', err);
-    }
-  }
-
-  // Send Test Message
-  async sendTestMessage(targetPhone) {
-    const timeStr = new Date().toLocaleTimeString('en-IN', {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: true
-    });
-
-    const message = 
-`✅ *Madras Beef Belly — WhatsApp Bot Active!*
-
-Your restaurant WhatsApp notification bot is connected and ready.
-You will receive real-time alerts for:
-• 🔔 New customer orders
-• ⚠️ Low inventory & stock shortages
-
-🕒 *Verified at:* ${timeStr}`;
-
-    return await this.sendMessage(targetPhone, message);
-  }
+  await db.query("UPDATE whatsapp_outbox SET sent_at = now(), message = '' WHERE id = $1 AND attempts = $2", [job.id, job.attempts]);
+  return true;
 }
 
-export const whatsappService = new WhatsAppService();
+export class WhatsAppWorker {
+  id = randomUUID();
+  client = null;
+  status = 'disconnected';
+  busy = false;
+
+  constructor(db) {
+    this.db = db;
+  }
+
+  async heartbeat() {
+    const { rows: [row] } = await this.db.query(`
+      UPDATE whatsapp_settings SET worker_id = $1, worker_seen_at = now()
+      WHERE id = 1 AND (worker_id = $1 OR worker_seen_at IS NULL OR worker_seen_at < now() - interval '40 seconds')
+      RETURNING bot_status, command
+    `, [this.id]);
+    return row;
+  }
+
+  async publish(status, { qr = null, phone = null, error = null } = {}) {
+    this.status = status;
+    await this.db.query(`
+      UPDATE whatsapp_settings SET bot_status = $2, qr_code = $3,
+        qr_expires_at = CASE WHEN $3::text IS NULL THEN NULL ELSE now() + interval '55 seconds' END,
+        bot_phone = $4, last_error = $5
+      WHERE id = 1 AND worker_id = $1 AND command = 'idle'
+    `, [this.id, status, qr, phone, error]);
+  }
+
+  async closeClient(logout = false) {
+    const client = this.client;
+    this.client = null;
+    if (!client) return;
+    if (logout && this.status === 'connected') await client.logout().catch(() => {});
+    await client.destroy().catch(() => {});
+  }
+
+  async connect(refresh = false) {
+    if (refresh) await this.closeClient(true);
+    if (this.client) return;
+    await this.publish('initializing');
+    const executablePath = process.env.WHATSAPP_CHROME_PATH || (existsSync(windowsChrome) ? windowsChrome : undefined);
+    const client = new Client({
+      authStrategy: new LocalAuth({ dataPath: path.resolve(process.env.WHATSAPP_AUTH_DIR || '.wwebjs_auth'), clientId: 'restaurant-worker', rmMaxRetries: 8 }),
+      authTimeoutMs: 60000,
+      puppeteer: {
+        executablePath,
+        headless: true,
+        args: ['--disable-dev-shm-usage', '--disable-gpu', '--disable-crash-reporter', '--disable-breakpad'],
+      },
+    });
+    this.client = client;
+    const handle = (event, callback) => client.on(event, (...args) => {
+      if (client !== this.client) return;
+      void callback(...args).catch(error => console.error('[WhatsApp] Could not publish', event, error.name));
+    });
+    handle('qr', async (raw) => {
+      const qr = await QRCode.toDataURL(raw, { margin: 3, scale: 7, errorCorrectionLevel: 'M' });
+      if (client === this.client && this.status !== 'connected') await this.publish('qr_ready', { qr });
+    });
+    handle('authenticated', async () => this.publish('initializing'));
+    handle('ready', async () => {
+      await this.publish('connected', { phone: client.info?.wid?.user ?? null });
+      console.log('[WhatsApp] Linked and ready to send alerts');
+    });
+    const disconnected = async () => {
+      await this.closeClient();
+      await this.publish('disconnected', { error: 'WhatsApp disconnected. Request a fresh QR code to link the phone.' });
+    };
+    handle('auth_failure', disconnected);
+    handle('disconnected', disconnected);
+    void client.initialize().catch(async (error) => {
+      if (client !== this.client) return;
+      await this.closeClient();
+      await this.publish('disconnected', { error: 'WhatsApp Web could not start. Request a fresh QR to retry.' });
+      console.error('[WhatsApp] Browser launch failed:', error.message.split('\n')[0]);
+    }).catch(error => console.error('[WhatsApp] Recovery failed:', error.name));
+  }
+
+  async tick() {
+    if (this.busy) return;
+    this.busy = true;
+    try {
+      const { rows: [request] } = await this.db.query(`
+        WITH pending AS (
+          SELECT command FROM whatsapp_settings WHERE id = 1 AND worker_id = $1 AND command <> 'idle' FOR UPDATE
+        )
+        UPDATE whatsapp_settings SET command = 'idle' FROM pending WHERE id = 1 RETURNING pending.command
+      `, [this.id]);
+      if (request?.command === 'disconnect') {
+        await this.closeClient(true);
+        await this.publish('disconnected');
+      } else if (request?.command === 'refresh' || request?.command === 'start') {
+        await this.connect(request.command === 'refresh');
+      }
+      if (this.status === 'connected' && this.client) {
+        await deliverQueuedMessage(this.db, async (to, text) => {
+          const message = await this.client.sendMessage(to, text, { waitUntilMsgSent: true });
+          if (!message?.id) throw new Error('WhatsApp did not accept the message');
+        });
+      }
+    } finally {
+      this.busy = false;
+    }
+  }
+}

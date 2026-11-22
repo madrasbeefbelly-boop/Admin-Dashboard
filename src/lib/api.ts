@@ -186,7 +186,7 @@ export const whatsappAPI = {
   getStatus: () => api.get('/whatsapp/status'),
 
   // Trigger client start / new QR generation
-  start: () => api.post('/whatsapp/start'),
+  start: (refresh: boolean) => api.post('/whatsapp/start', { refresh }),
 
   // Save WhatsApp settings
   saveConfig: (data: {

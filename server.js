@@ -17,7 +17,8 @@ import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readFileSync } from 'node:fs';
-import { whatsappService } from './whatsappService.js';
+import { randomUUID } from 'node:crypto';
+import { enqueueWhatsApp, formatChatId, queueLowStockAlert, queueOrderAlert } from './whatsappDelivery.js';
 
 // Global error handlers to prevent crashes from Windows file locks (e.g. Chrome CrashpadMetrics)
 process.on('uncaughtException', (err) => {
@@ -169,11 +170,6 @@ const pool = new Pool({
   ...(hosted && { max: 4, connectionTimeoutMillis: 5000 }),
 });
 pool.on('error', error => console.error('Idle database connection closed:', error.code ?? error.message));
-
-// Initialize WhatsApp background worker with database pool
-if (!hosted) {
-  whatsappService.setPool(pool);
-}
 
 // Test database connection
 if (!hosted) pool.query('SELECT NOW()', (err, res) => {
@@ -1025,6 +1021,7 @@ app.post('/api/inventory/:id/adjust', async (req, res) => {
       RETURNING *
     `, [newStock, req.params.id]);
 
+    await queueLowStockAlert(client, `adjust:${randomUUID()}`, item, previousStock, Number(updated.rows[0].current_stock));
     await client.query('COMMIT');
 
     res.json({ 
@@ -1078,6 +1075,7 @@ app.put('/api/inventory/:id/stock', async (req, res) => {
       RETURNING *
     `, [newStock, req.params.id]);
 
+    await queueLowStockAlert(client, `stock:${randomUUID()}`, item, previousStock, Number(result.rows[0].current_stock));
     await client.query('COMMIT');
 
     res.json({ 
@@ -1802,12 +1800,8 @@ app.post('/api/orders', async (req, res) => {
       `, [order.id, item.menu_item_id || null, item.name.trim(), item.category || null, item.unit_price, item.quantity]);
     }
 
+    await queueOrderAlert(client, order, items);
     await client.query('COMMIT');
-
-    // Trigger asynchronous WhatsApp notification for new order
-    whatsappService.notifyNewOrder({ ...order, items }, pool).catch((err) => {
-      console.error('[WhatsApp] Order alert error:', err.message);
-    });
 
     res.status(201).json({ success: true, data: { ...order, items } });
   } catch (error) {
@@ -1830,7 +1824,7 @@ async function getOrderIngredientRequirements(client, order, lockInventory = fal
   `, [order.id]);
   const ids = [...new Set(recipeRows.map((row) => row.inventory_item_id).filter(Boolean))];
   const { rows: inventory } = await client.query(`
-    SELECT id, name, unit, current_stock, cost_per_unit, is_active
+    SELECT id, name, unit, current_stock, minimum_stock, cost_per_unit, is_active
     FROM inventory_items WHERE id = ANY($1::uuid[]) AND business_id = $2
     ORDER BY id
     ${lockInventory ? 'FOR UPDATE' : ''}
@@ -1937,6 +1931,7 @@ const updateOrderStatusHandler = async (req, res) => {
       for (const { item, quantity, consumptions } of requirements) {
         const remaining = stockQuantity(Number(item.current_stock) - quantity);
         await client.query('UPDATE inventory_items SET current_stock = $1, updated_at = NOW() WHERE id = $2', [remaining, item.id]);
+        await queueLowStockAlert(client, `order:${orderId}:low:${item.id}`, item, Number(item.current_stock), remaining);
         for (const line of consumptions) {
           await client.query(`
             INSERT INTO order_ingredient_consumptions (
@@ -1957,28 +1952,6 @@ const updateOrderStatusHandler = async (req, res) => {
       RETURNING id, status, inventory_deducted
     `, [status, shouldDeduct, canceledStatuses.includes(status), cancellation_reason || 'Canceled by staff', orderId]);
     await client.query('COMMIT');
-
-    // Trigger low-stock WhatsApp alert if ingredients dropped below minimum
-    if (deductedRequirements.length > 0) {
-      setTimeout(async () => {
-        try {
-          for (const requirement of deductedRequirements) {
-            const itemRes = await pool.query(
-              'SELECT name, current_stock, minimum_stock, unit, category FROM inventory_items WHERE id = $1',
-              [requirement.item.id]
-            );
-            const item = itemRes.rows[0];
-            if (item && Number(item.current_stock) <= Number(item.minimum_stock)) {
-              whatsappService.notifyLowStock(item, pool).catch((err) =>
-                console.error('[WhatsApp] Low-stock alert error:', err.message)
-              );
-            }
-          }
-        } catch (alertErr) {
-          console.error('[WhatsApp] Low-stock check error:', alertErr.message);
-        }
-      }, 100);
-    }
 
     res.json({ success: true, data: { ...updated, deduction_count: deductedRequirements.length } });
   } catch (error) {
@@ -2084,114 +2057,90 @@ app.put('/api/notifications/read-all', authenticateToken, async (req, res) => {
 // WHATSAPP BOT & NOTIFICATIONS ENDPOINTS
 // ============================================================================
 
-// GET WhatsApp status & settings
-app.get('/api/whatsapp/status', async (req, res) => {
-  try {
-    const settingsRes = await pool.query('SELECT * FROM whatsapp_settings WHERE id = 1');
-    const settings = settingsRes.rows[0] || {};
-    
-    // If running in local active process, use live status; otherwise use database synced status
-    const isLive = !hosted && (whatsappService.status === 'connected' || (whatsappService.status === 'qr_ready' && whatsappService.qrCode));
-    const effectiveStatus = isLive ? whatsappService.getStatus() : {
-      status: settings.bot_status || 'disconnected',
-      isConnected: settings.bot_status === 'connected',
-      isInitializing: settings.bot_status === 'initializing',
-      qrCode: settings.qr_code || null,
-      info: settings.bot_phone ? { pushname: 'Madras Beef Belly', phone: settings.bot_phone, wid: settings.bot_phone } : null,
-      lastError: settings.last_error || null
-    };
+const whatsappSession = hosted ? [requireAdmin] : [authenticateToken, loadDashboardMember, requireAdmin];
 
-    res.json({
-      success: true,
-      data: {
-        ...effectiveStatus,
-        targetPhone: settings.target_phone || '',
-        targetGroupId: settings.target_group_id || '',
-        alertLowStock: settings.alert_low_stock ?? true,
-        alertNewOrders: settings.alert_new_orders ?? true,
-      }
-    });
-  } catch (err) {
-    console.error('Error getting WhatsApp status:', err);
-    res.status(500).json({ success: false, error: err.message });
-  }
+app.get('/api/whatsapp/status', ...whatsappSession, async (req, res) => {
+  const { rows: [settings] } = await pool.query(`
+    SELECT *, COALESCE(worker_seen_at > now() - interval '40 seconds', false) AS online,
+      COALESCE(qr_expires_at > now(), false) AS qr_is_fresh
+    FROM whatsapp_settings WHERE id = 1
+  `);
+  if (!settings) return res.status(503).json({ success: false, error: 'WhatsApp setup is unavailable.' });
+  const { rows: [test] } = await pool.query(`
+    SELECT id, sent_at, failed_at FROM whatsapp_outbox WHERE kind = 'test' ORDER BY id DESC LIMIT 1
+  `);
+  const { rows: [delivery] } = await pool.query(`
+    SELECT count(*) FILTER (WHERE failed_at IS NULL)::int AS pending,
+      count(*) FILTER (WHERE failed_at IS NOT NULL AND created_at >= now() - interval '7 days')::int AS failed
+    FROM whatsapp_outbox WHERE kind <> 'test' AND sent_at IS NULL
+  `);
+  const status = !settings.online ? 'offline' : settings.bot_status === 'qr_ready' && !settings.qr_is_fresh
+    ? 'qr_expired' : settings.bot_status;
+  res.json({
+    success: true,
+    data: {
+      status,
+      isConnected: status === 'connected',
+      qrCode: status === 'qr_ready' ? settings.qr_code : null,
+      info: status === 'connected' && settings.bot_phone ? { phone: settings.bot_phone } : null,
+      lastError: settings.online ? settings.last_error : null,
+      targetPhone: settings.target_phone || '',
+      targetGroupId: settings.target_group_id || '',
+      alertLowStock: settings.alert_low_stock ?? true,
+      alertNewOrders: settings.alert_new_orders ?? true,
+      lastTest: test ? { id: test.id, status: test.sent_at ? 'sent' : test.failed_at ? 'failed' : 'queued' } : null,
+      delivery,
+    },
+  });
 });
 
-// START WhatsApp client (generates new QR if not connected)
-app.post('/api/whatsapp/start', async (req, res) => {
-  try {
-    await pool.query(`
-      UPDATE whatsapp_settings 
-      SET command = 'start', bot_status = 'initializing', updated_at = NOW() 
-      WHERE id = 1
-    `);
-    if (!hosted) {
-      whatsappService.start().catch((e) => console.error('[WhatsApp] start error:', e.message));
-    }
-    res.json({ success: true, message: 'WhatsApp initialization triggered' });
-  } catch (err) {
-    console.error('Error starting WhatsApp:', err);
-    res.status(500).json({ success: false, error: err.message });
-  }
+app.post('/api/whatsapp/start', ...whatsappSession, async (req, res) => {
+  const refresh = req.body?.refresh === true;
+  const result = await pool.query(`
+    UPDATE whatsapp_settings SET command = $1, bot_status = 'initializing', qr_code = NULL, qr_expires_at = NULL,
+      last_error = NULL, updated_at = now()
+    WHERE id = 1 AND worker_seen_at > now() - interval '40 seconds'
+      AND (bot_status <> 'connected' OR $2)
+  `, [refresh ? 'refresh' : 'start', refresh]);
+  if (!result.rowCount) return res.status(409).json({ success: false, error: 'The WhatsApp worker is offline or the phone is already linked.' });
+  res.status(202).json({ success: true, message: 'WhatsApp QR requested.' });
 });
 
-// UPDATE WhatsApp settings
-app.post('/api/whatsapp/config', async (req, res) => {
-  try {
-    const { targetPhone, targetGroupId, alertLowStock, alertNewOrders } = req.body;
-    await pool.query(`
-      INSERT INTO whatsapp_settings (id, target_phone, target_group_id, alert_low_stock, alert_new_orders, updated_at)
-      VALUES (1, $1, $2, $3, $4, NOW())
-      ON CONFLICT (id) DO UPDATE SET
-        target_phone = EXCLUDED.target_phone,
-        target_group_id = EXCLUDED.target_group_id,
-        alert_low_stock = EXCLUDED.alert_low_stock,
-        alert_new_orders = EXCLUDED.alert_new_orders,
-        updated_at = NOW();
-    `, [targetPhone ?? '', targetGroupId ?? '', alertLowStock ?? true, alertNewOrders ?? true]);
-    res.json({ success: true, message: 'WhatsApp settings saved successfully' });
-  } catch (err) {
-    console.error('Error updating WhatsApp settings:', err);
-    res.status(500).json({ success: false, error: err.message });
+app.post('/api/whatsapp/config', ...whatsappSession, async (req, res) => {
+  const { targetPhone, targetGroupId, alertLowStock, alertNewOrders } = req.body ?? {};
+  const phone = typeof targetPhone === 'string' ? targetPhone.trim() : '';
+  const group = typeof targetGroupId === 'string' ? targetGroupId.trim() : '';
+  if ((phone && !formatChatId(phone)) || (group && !formatChatId(group, true))) {
+    return res.status(400).json({ success: false, error: 'Enter a valid WhatsApp phone number or group ID.' });
   }
+  await pool.query(`
+    UPDATE whatsapp_settings SET target_phone = $1, target_group_id = $2,
+      alert_low_stock = $3, alert_new_orders = $4, updated_at = now() WHERE id = 1
+  `, [phone, group, alertLowStock !== false, alertNewOrders !== false]);
+  res.json({ success: true });
 });
 
-// DISCONNECT / LOGOUT WhatsApp
-app.post('/api/whatsapp/disconnect', async (req, res) => {
-  try {
-    await pool.query(`
-      UPDATE whatsapp_settings 
-      SET command = 'disconnect', bot_status = 'disconnected', qr_code = NULL, updated_at = NOW() 
-      WHERE id = 1
-    `);
-    if (!hosted) {
-      await whatsappService.disconnect();
-    }
-    res.json({ success: true, message: 'WhatsApp disconnected' });
-  } catch (err) {
-    console.error('Error disconnecting WhatsApp:', err);
-    res.status(500).json({ success: false, error: err.message });
-  }
+app.post('/api/whatsapp/disconnect', ...whatsappSession, async (req, res) => {
+  await pool.query(`
+    UPDATE whatsapp_settings SET command = 'disconnect', bot_status = 'disconnected',
+      qr_code = NULL, qr_expires_at = NULL, updated_at = now() WHERE id = 1
+  `);
+  res.status(202).json({ success: true, message: 'Unlink requested.' });
 });
 
-// SEND TEST WhatsApp message
-app.post('/api/whatsapp/test', async (req, res) => {
-  try {
-    const { phone } = req.body;
-    const target = phone || (await pool.query('SELECT target_phone FROM whatsapp_settings WHERE id = 1')).rows[0]?.target_phone;
-    if (!target) {
-      return res.status(400).json({ success: false, error: 'Please enter a target phone number first.' });
-    }
-    if (!hosted && whatsappService.status === 'connected') {
-      await whatsappService.sendTestMessage(target);
-    } else {
-      await pool.query(`UPDATE whatsapp_settings SET command = 'test', updated_at = NOW() WHERE id = 1`);
-    }
-    res.json({ success: true, message: 'Test message sent to WhatsApp!' });
-  } catch (err) {
-    console.error('Error sending test WhatsApp message:', err);
-    res.status(500).json({ success: false, error: err.message });
-  }
+app.post('/api/whatsapp/test', ...whatsappSession, async (req, res) => {
+  const { rows: [settings] } = await pool.query(`
+    SELECT target_phone, target_group_id FROM whatsapp_settings
+    WHERE id = 1 AND bot_status = 'connected' AND worker_seen_at > now() - interval '40 seconds'
+  `);
+  if (!settings) return res.status(409).json({ success: false, error: 'Link WhatsApp before sending a test.' });
+  const target = req.body?.phone ? formatChatId(req.body.phone)
+    : formatChatId(settings.target_phone) || formatChatId(settings.target_group_id, true);
+  if (!target) return res.status(400).json({ success: false, error: 'Enter a valid WhatsApp number or save a group ID first.' });
+  const [job] = await enqueueWhatsApp(pool, `test:${randomUUID()}`, 'test',
+    '✅ *Madras Beef Belly*\n\nWhatsApp alerts are linked. New orders and low-stock alerts can be sent here.', target);
+  if (!job) return res.status(503).json({ success: false, error: 'Could not queue the WhatsApp test.' });
+  res.status(202).json({ success: true, data: { id: job.id } });
 });
 
 // ============================================================================
@@ -2243,11 +2192,6 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     console.log(`   DELETE /api/staff/:id`);
     console.log(`\n`);
 
-    // Start WhatsApp Notification Bot
-    console.log(`🤖 Starting WhatsApp Bot Service...`);
-    whatsappService.start().catch((err) => {
-      console.error('[WhatsApp] Startup error on boot:', err.message);
-    });
   });
 }
 

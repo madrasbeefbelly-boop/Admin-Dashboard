@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "dev:backend": "node server.js",
+    "whatsapp:worker": "node whatsappWorker.js",
     "dev:both": "concurrently \"npm run dev\" \"npm run dev:backend\"",
     "build": "vite build",
     "build:dev": "vite build --mode development",
