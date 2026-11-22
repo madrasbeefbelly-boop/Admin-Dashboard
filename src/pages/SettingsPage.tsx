@@ -71,24 +71,37 @@ export default function SettingsPage() {
   }, [savedPhone, savedGroup, savedLowStock, savedOrders]);
 
   const handleSaveWA = () => {
-    saveWAConfig(waConfig, {
-      onSuccess: () => {
-        toast.success('WhatsApp alert settings saved successfully!');
+    if (!waConfig.targetGroupId.trim()) {
+      toast.error('Please enter a WhatsApp Group ID.');
+      return;
+    }
+    saveWAConfig(
+      {
+        targetPhone: '',
+        targetGroupId: waConfig.targetGroupId.trim(),
+        alertLowStock: waConfig.alertLowStock,
+        alertNewOrders: waConfig.alertNewOrders,
       },
-      onError: (err: any) => {
-        toast.error(err?.response?.data?.error || 'Failed to save WhatsApp settings');
-      },
-    });
+      {
+        onSuccess: () => {
+          toast.success('WhatsApp alert settings saved successfully!');
+        },
+        onError: (err: any) => {
+          toast.error(err?.response?.data?.error || 'Failed to save WhatsApp settings');
+        },
+      }
+    );
   };
 
   const handleSendTestWA = () => {
-    if (!waConfig.targetPhone.trim() && !savedGroup) {
-      toast.error('Enter a WhatsApp number or save a group ID first.');
+    const groupTarget = waConfig.targetGroupId.trim() || savedGroup;
+    if (!groupTarget) {
+      toast.error('Enter or save a WhatsApp Group ID first.');
       return;
     }
-    sendTestWA(waConfig.targetPhone.trim() || undefined, {
+    sendTestWA(groupTarget, {
       onSuccess: () => {
-        toast.success('Test message queued. Its status will update here.');
+        toast.success('Test message queued to group. Its status will update here.');
       },
       onError: (err: any) => {
         toast.error(err?.response?.data?.error || 'Failed to send WhatsApp message. Check connection.');
@@ -451,38 +464,20 @@ export default function SettingsPage() {
                 Notification Preferences
               </h4>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="waPhone" className="text-xs font-semibold text-slate-700">
-                    Receiver WhatsApp Number
-                  </Label>
-                  <Input
-                    id="waPhone"
-                    placeholder="e.g. 919876543210"
-                    value={waConfig.targetPhone}
-                    onChange={(e) => setWaConfig({ ...waConfig, targetPhone: e.target.value })}
-                    className="mt-1.5 text-xs font-mono"
-                  />
-                  <span className="text-[11px] text-slate-400 mt-1 block">
-                    Include country code without + (e.g. 91 for India + 10 digits)
-                  </span>
-                </div>
-
-                <div>
-                  <Label htmlFor="waGroup" className="text-xs font-semibold text-slate-700">
-                    WhatsApp Group ID (Optional)
-                  </Label>
-                  <Input
-                    id="waGroup"
-                    placeholder="e.g. 12036302...@g.us"
-                    value={waConfig.targetGroupId}
-                    onChange={(e) => setWaConfig({ ...waConfig, targetGroupId: e.target.value })}
-                    className="mt-1.5 text-xs font-mono"
-                  />
-                  <span className="text-[11px] text-slate-400 mt-1 block">
-                    Optional: Send alerts directly to a staff WhatsApp group
-                  </span>
-                </div>
+              <div>
+                <Label htmlFor="waGroup" className="text-xs font-semibold text-slate-700">
+                  Staff WhatsApp Group ID *
+                </Label>
+                <Input
+                  id="waGroup"
+                  placeholder="e.g. 120363432438097680@g.us"
+                  value={waConfig.targetGroupId}
+                  onChange={(e) => setWaConfig({ ...waConfig, targetGroupId: e.target.value })}
+                  className="mt-1.5 text-xs font-mono"
+                />
+                <span className="text-[11px] text-slate-400 mt-1 block">
+                  All order details and kitchen alerts are sent directly to this WhatsApp group.
+                </span>
               </div>
 
               <Separator className="my-3" />

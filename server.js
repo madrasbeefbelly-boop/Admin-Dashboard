@@ -2110,13 +2110,17 @@ app.post('/api/whatsapp/config', ...whatsappSession, async (req, res) => {
   const { targetPhone, targetGroupId, alertLowStock, alertNewOrders } = req.body ?? {};
   const phone = typeof targetPhone === 'string' ? targetPhone.trim() : '';
   const group = typeof targetGroupId === 'string' ? targetGroupId.trim() : '';
-  if ((phone && !formatChatId(phone)) || (group && !formatChatId(group, true))) {
-    return res.status(400).json({ success: false, error: 'Enter a valid WhatsApp phone number or group ID.' });
+  if (phone && !formatChatId(phone)) {
+    return res.status(400).json({ success: false, error: 'Enter a valid WhatsApp phone number.' });
   }
+  if (group && !formatChatId(group, true)) {
+    return res.status(400).json({ success: false, error: 'Enter a valid WhatsApp group ID (e.g. 120363432438097680@g.us).' });
+  }
+  const formattedGroup = group ? (formatChatId(group, true) || group) : '';
   await pool.query(`
     UPDATE whatsapp_settings SET target_phone = $1, target_group_id = $2,
       alert_low_stock = $3, alert_new_orders = $4, updated_at = now() WHERE id = 1
-  `, [phone, group, alertLowStock !== false, alertNewOrders !== false]);
+  `, [phone, formattedGroup, alertLowStock !== false, alertNewOrders !== false]);
   res.json({ success: true });
 });
 
@@ -2134,11 +2138,13 @@ app.post('/api/whatsapp/test', ...whatsappSession, async (req, res) => {
     WHERE id = 1 AND bot_status = 'connected' AND worker_seen_at > now() - interval '40 seconds'
   `);
   if (!settings) return res.status(409).json({ success: false, error: 'Link WhatsApp before sending a test.' });
-  const target = req.body?.phone ? formatChatId(req.body.phone)
-    : formatChatId(settings.target_phone) || formatChatId(settings.target_group_id, true);
-  if (!target) return res.status(400).json({ success: false, error: 'Enter a valid WhatsApp number or save a group ID first.' });
+  const rawTarget = req.body?.target || req.body?.phone;
+  const target = rawTarget
+    ? (formatChatId(rawTarget, true) || formatChatId(rawTarget))
+    : (formatChatId(settings.target_group_id, true) || formatChatId(settings.target_phone));
+  if (!target) return res.status(400).json({ success: false, error: 'Enter or save a WhatsApp Group ID first.' });
   const [job] = await enqueueWhatsApp(pool, `test:${randomUUID()}`, 'test',
-    '✅ *Madras Beef Belly*\n\nWhatsApp alerts are linked. New orders and low-stock alerts can be sent here.', target);
+    '✅ *Madras Beef Belly*\n\nWhatsApp alerts are linked! New order notifications and kitchen alerts will arrive in this group.', target);
   if (!job) return res.status(503).json({ success: false, error: 'Could not queue the WhatsApp test.' });
   res.status(202).json({ success: true, data: { id: job.id } });
 });

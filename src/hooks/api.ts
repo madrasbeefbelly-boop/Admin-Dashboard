@@ -406,7 +406,7 @@ export const useSaveWhatsAppConfig = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (data: {
-      targetPhone: string;
+      targetPhone?: string;
       targetGroupId?: string;
       alertLowStock: boolean;
       alertNewOrders: boolean;

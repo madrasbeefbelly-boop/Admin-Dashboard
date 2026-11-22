@@ -1,6 +1,12 @@
 export function formatChatId(value, group = false) {
-  const input = String(value ?? '').trim();
-  if (group) return /^\d+(?:-\d+)?@g\.us$/.test(input) ? input : null;
+  let input = String(value ?? '').trim();
+  if (!input) return null;
+  if (group || input.endsWith('@g.us')) {
+    if (!input.endsWith('@g.us')) {
+      input = `${input}@g.us`;
+    }
+    return /^\d+(?:-\d+)?@g\.us$/.test(input) ? input : null;
+  }
   if (input.endsWith('@c.us')) return /^[1-9]\d{7,14}@c\.us$/.test(input) ? input : null;
   if (!/^\+?[\d\s()-]+$/.test(input)) return null;
   const digits = input.replace(/\D/g, '');
@@ -15,7 +21,8 @@ export async function enqueueWhatsApp(db, eventKey, kind, message, testTarget = 
   const { rows: [settings] } = await db.query('SELECT target_phone, target_group_id, alert_new_orders, alert_low_stock FROM whatsapp_settings WHERE id=1');
   if (!settings || (kind === 'order' && !settings.alert_new_orders) || (kind === 'low_stock' && !settings.alert_low_stock)) return [];
   const recipients = testTarget ? [testTarget] : [
-    formatChatId(settings.target_phone), formatChatId(settings.target_group_id, true),
+    formatChatId(settings.target_group_id, true),
+    formatChatId(settings.target_phone),
   ];
   const targets = [...new Set(recipients.filter(Boolean))];
   if (!targets.length) return [];
@@ -28,18 +35,22 @@ export async function enqueueWhatsApp(db, eventKey, kind, message, testTarget = 
 }
 
 export function queueOrderAlert(db, order, items) {
-  const lines = items.map(({ name, quantity, unit_price }) =>
-    `• ${quantity} × ${name} · ${money(Number(quantity) * Number(unit_price))}`).join('\n');
+  const lines = items.map((item) => {
+    const itemName = item.name || item.item_name || 'Item';
+    const qty = item.quantity || 1;
+    const price = Number(item.unit_price || 0);
+    return `• ${qty} × ${itemName} · ${money(Number(qty) * price)}`;
+  }).join('\n');
   return enqueueWhatsApp(db, `order:${order.id}`, 'order', `🔔 *Madras Beef Belly — New order*
 
-*Order:* ${order.order_ref}
-*Customer:* ${order.customer_name || 'Walk-in'}
+*Order:* ${order.order_ref || order.order_number || order.id}
+*Customer:* ${order.customer_name || order.client_name || 'Walk-in'}
 *Table:* ${order.table_no || 'Takeaway / Walk-in'}
 *Payment:* ${order.payment_method || 'Cash'}
 
 ${lines}
 
-*Total:* ${money(Number(order.total_amount))}`);
+*Total:* ${money(Number(order.total_amount || order.total_value || 0))}`);
 }
 
 export async function queueLowStockAlert(db, key, item, previous, current) {
