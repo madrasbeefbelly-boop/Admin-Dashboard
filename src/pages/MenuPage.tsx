@@ -6,6 +6,9 @@ import { isMockMode } from '@/lib/mock-mode';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { PhotoPicker } from '@/components/ui/photo-picker';
+import { catalogPhotoSource } from '@/lib/catalog-photo';
+import { useAuth } from '@/contexts/AuthContext';
 import {
   Select,
   SelectContent,
@@ -80,8 +83,8 @@ function DishCardImage({
   className?: string;
   aspectRatio?: 'banner' | 'square';
 }) {
-  const [hasError, setHasError] = useState(false);
-  const isPlaceholder = !src || src === '/placeholder.svg' || hasError;
+  const [failedSource, setFailedSource] = useState<string | null>(null);
+  const isPlaceholder = !src || src === '/placeholder.svg' || failedSource === src;
 
   if (isPlaceholder) {
     return (
@@ -122,19 +125,22 @@ function DishCardImage({
 
   return (
     <img
-      src={src}
+      src={catalogPhotoSource(src)}
       alt={name}
       loading="lazy"
       className={cn(
         'h-full w-full object-cover transition-transform duration-300 group-hover:scale-105',
         className
       )}
-      onError={() => setHasError(true)}
+      onError={() => setFailedSource(src)}
     />
   );
 }
 
 export default function MenuPage() {
+  const { isAdmin } = useAuth();
+  const [photo, setPhoto] = useState<string | null>();
+  const [photoPending, setPhotoPending] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -156,6 +162,9 @@ export default function MenuPage() {
   const createMenuItem = useCreateMenuItem();
   const updateMenuItem = useUpdateMenuItem();
   const isSaving = createMenuItem.isPending || updateMenuItem.isPending;
+  const existingPhoto = editing?.image_url && editing.image_url !== '/placeholder.svg'
+    ? catalogPhotoSource(editing.image_url)
+    : null;
   const categories = [
     ...new Set([...menuCategories, ...menuItems.map((item) => item.category), formData.category]),
   ];
@@ -180,6 +189,8 @@ export default function MenuPage() {
 
   const openDishForm = (item: MenuCatalogItem | null = null) => {
     setEditing(item);
+    setPhoto(undefined);
+    setPhotoPending(false);
     setFormData(
       item
         ? {
@@ -197,6 +208,7 @@ export default function MenuPage() {
 
   const saveDish = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (isMockMode() || isSaving || photoPending) return;
     const name = formData.name.trim();
     if (!name) {
       toast.error('Enter a dish name');
@@ -210,6 +222,7 @@ export default function MenuPage() {
       is_vegetarian: editing?.is_vegetarian ?? false,
       prep_time_minutes: editing ? editing.prep_time_minutes : 30,
       ingredients: formData.ingredients,
+      photo: editing ? photo : photo ?? undefined,
     };
     try {
       if (editing) {
@@ -358,6 +371,15 @@ export default function MenuPage() {
             </DialogDescription>
           </DialogHeader>
           <form id="dish-form" onSubmit={saveDish} className="space-y-4">
+            {isAdmin() && (
+              <PhotoPicker
+                label="Dish photo"
+                source={photo === undefined ? existingPhoto : photo}
+                onChange={setPhoto}
+                onPendingChange={setPhotoPending}
+                disabled={isMockMode() || isSaving}
+              />
+            )}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label htmlFor="dish-name" className="text-sm font-medium">
@@ -458,7 +480,7 @@ export default function MenuPage() {
               className="bg-[#dc2626] hover:bg-[#b91c1c] text-white"
               form="dish-form"
               type="submit"
-              disabled={isMockMode() || isSaving}
+              disabled={isMockMode() || isSaving || photoPending}
             >
               {isSaving ? (
                 <>

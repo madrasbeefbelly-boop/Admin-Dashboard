@@ -39,6 +39,7 @@ export interface InventoryItem {
   supplier_name?: string | null;
   expiry_date?: string | null;
   is_active?: boolean;
+  image_url?: string | null;
 }
 
 export interface LowStockItem {

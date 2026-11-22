@@ -109,6 +109,14 @@ export const useCreateInventoryItem = () => {
   });
 };
 
+export const useUpdateInventoryPhoto = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, photo }: { id: string; photo: string | null }) => inventoryAPI.updatePhoto(id, photo),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['inventory'] }),
+  });
+};
+
 export const useUpdateInventoryItem = () => {
   const queryClient = useQueryClient();
   return useMutation<any, Error, { id: string; data: any }>({

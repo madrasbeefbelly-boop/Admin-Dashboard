@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { catalogPhotoSource } from '@/lib/catalog-photo';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -264,7 +265,7 @@ export default function OrdersPage() {
                         <span className="flex w-full min-w-0 items-center gap-2.5">
                           {item.image_url && item.image_url !== '/placeholder.svg' ? (
                             <img
-                              src={item.image_url}
+                              src={catalogPhotoSource(item.image_url)}
                               alt=""
                               className="size-7 rounded object-cover shrink-0 border border-border/60"
                               onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
@@ -321,7 +322,7 @@ export default function OrdersPage() {
                         const imgUrl = menuItem?.image_url;
                         return imgUrl && imgUrl !== '/placeholder.svg' ? (
                           <img
-                            src={imgUrl}
+                            src={catalogPhotoSource(imgUrl)}
                             alt=""
                             className="size-11 rounded-lg object-cover shrink-0 border border-border/80"
                             onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
@@ -527,7 +528,7 @@ export default function OrdersPage() {
                               const imgUrl = menuItem?.image_url;
                               return imgUrl && imgUrl !== '/placeholder.svg' ? (
                                 <img
-                                  src={imgUrl}
+                                  src={catalogPhotoSource(imgUrl)}
                                   alt=""
                                   className="size-6 rounded object-cover shrink-0 border border-border/60"
                                   onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}

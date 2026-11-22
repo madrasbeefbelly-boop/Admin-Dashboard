@@ -164,6 +164,16 @@ CREATE INDEX idx_inventory_items_supplier_id ON inventory_items(supplier_id);
 CREATE INDEX idx_inventory_items_stock_check ON inventory_items(current_stock, minimum_stock);
 CREATE INDEX idx_inventory_items_expiry_date ON inventory_items(expiry_date);
 
+CREATE TABLE catalog_photos (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  menu_item_id UUID UNIQUE REFERENCES menu_items(id) ON DELETE CASCADE,
+  inventory_item_id UUID UNIQUE REFERENCES inventory_items(id) ON DELETE CASCADE,
+  jpeg BYTEA NOT NULL CHECK (octet_length(jpeg) BETWEEN 4 AND 256000),
+  CHECK (num_nonnulls(menu_item_id, inventory_item_id) = 1)
+);
+
+ALTER TABLE catalog_photos ENABLE ROW LEVEL SECURITY;
+
 -- ============================================================================
 -- MENU_ITEM_INGREDIENTS TABLE (Ingredient mapping)
 -- ============================================================================

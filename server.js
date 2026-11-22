@@ -69,7 +69,13 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
-app.use(express.json());
+const parseJson = express.json();
+const parsePhotoJson = express.json({ limit: '512kb' });
+app.use((req, res, next) => {
+  const acceptsPhoto = ['POST', 'PUT'].includes(req.method) &&
+    /^\/api\/(menu-items(?:\/[^/]+)?|inventory(?:\/[^/]+\/photo)?)\/?$/.test(req.path);
+  return (acceptsPhoto ? parsePhotoJson : parseJson)(req, res, next);
+});
 app.use(cookieParser());
 
 // Session middleware (required for Passport)
@@ -334,18 +340,74 @@ app.post('/api/auth/logout', (req, res) => {
   res.json({ success: true, message: 'Logged out successfully' });
 });
 
+const loadDashboardMember = async (req, res, next) => {
+  const { rows: [member] } = await pool.query(
+    'SELECT role, business_id FROM users WHERE id = $1 AND is_active AND deleted_at IS NULL AND business_id IS NOT NULL',
+    [req.user.id]
+  );
+  if (!member) return res.status(403).json({ success: false, error: 'Account has no dashboard access.' });
+  Object.assign(req.user, member);
+  next();
+};
+
 // Hosted business data is available only to active members of the dashboard.
-if (hosted) {
-  app.use('/api', authenticateToken, async (req, res, next) => {
-    const { rows } = await pool.query(
-      'SELECT role FROM users WHERE id = $1 AND is_active AND deleted_at IS NULL AND business_id IS NOT NULL',
-      [req.user.id]
-    );
-    if (!rows.length) return res.status(403).json({ success: false, error: 'Account has no dashboard access.' });
-    req.user.role = rows[0].role;
-    next();
-  });
+if (hosted) app.use('/api', authenticateToken, loadDashboardMember);
+
+const photoSession = hosted ? [] : [authenticateToken, loadDashboardMember];
+const optionalPhotoAdmin = (req, res, next) => {
+  if (req.body?.photo === undefined && req.body?.image_url === undefined) return next();
+  if (hosted) return requireAdmin(req, res, next);
+  return authenticateToken(req, res, () => loadDashboardMember(req, res, () => requireAdmin(req, res, next)).catch(next));
+};
+
+function readPhoto(req, res, next) {
+  const photo = req.body?.photo;
+  if (photo === undefined || photo === null) {
+    req.catalogPhoto = photo;
+    return next();
+  }
+  const match = typeof photo === 'string' && photo.length <= 341359 &&
+    /^data:image\/jpeg;base64,([A-Za-z0-9+/]+={0,2})$/.exec(photo);
+  const jpeg = match && Buffer.from(match[1], 'base64');
+  if (!jpeg || jpeg.length < 4 || jpeg.length > 256000 ||
+      jpeg[0] !== 0xff || jpeg[1] !== 0xd8 || jpeg[2] !== 0xff ||
+      jpeg.at(-2) !== 0xff || jpeg.at(-1) !== 0xd9) {
+    return res.status(400).json({ success: false, error: 'Choose a valid photo and try again.' });
+  }
+  req.catalogPhoto = jpeg;
+  next();
 }
+
+// foreignKey comes from the fixed menu/inventory route definitions.
+async function saveCatalogPhoto(db, foreignKey, itemId, photo) {
+  if (photo === undefined) return;
+  if (photo === null) {
+    await db.query(`DELETE FROM catalog_photos WHERE ${foreignKey} = $1`, [itemId]);
+    return null;
+  }
+  const { rows: [saved] } = await db.query(`
+    INSERT INTO catalog_photos (${foreignKey}, jpeg) VALUES ($1, $2)
+    ON CONFLICT (${foreignKey}) DO UPDATE SET id = gen_random_uuid(), jpeg = EXCLUDED.jpeg
+    RETURNING '/api/catalog-photos/' || id AS url
+  `, [itemId, photo]);
+  return saved.url;
+}
+
+app.get('/api/catalog-photos/:id', ...photoSession, async (req, res) => {
+  if (!/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(req.params.id)) return res.sendStatus(404);
+  const { rows: [photo] } = await pool.query(`
+    SELECT p.jpeg
+    FROM catalog_photos p
+    LEFT JOIN menu_items m ON m.id = p.menu_item_id AND m.deleted_at IS NULL
+    LEFT JOIN inventory_items i ON i.id = p.inventory_item_id AND i.is_active
+    WHERE p.id = $1 AND COALESCE(m.business_id, i.business_id) = $2
+  `, [req.params.id, req.user.business_id]);
+  if (!photo) return res.sendStatus(404);
+  res.type('jpeg').set({
+    'Cache-Control': 'private, no-cache',
+    'X-Content-Type-Options': 'nosniff',
+  }).send(photo.jpeg);
+});
 
 // Get current user
 app.get('/api/auth/me', authenticateToken, async (req, res) => {
@@ -470,10 +532,11 @@ app.get('/api/menu-items', async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT 
-        id, name, description, category, cost_per_serving, 
+        m.id, name, description, category, cost_per_serving,
         selling_price, margin_percent, is_available, 
-        is_vegetarian, prep_time_minutes, image_url
-      FROM menu_items
+        is_vegetarian, prep_time_minutes, COALESCE('/api/catalog-photos/' || p.id, image_url) AS image_url
+      FROM menu_items m
+      LEFT JOIN catalog_photos p ON p.menu_item_id = m.id
       WHERE deleted_at IS NULL
       ORDER BY category, name
     `);
@@ -538,7 +601,10 @@ app.get('/api/menu-items', async (req, res) => {
 app.get('/api/menu-items/:id', async (req, res) => {
   try {
     const result = await pool.query(`
-      SELECT * FROM menu_items WHERE id = $1 AND deleted_at IS NULL
+      SELECT m.*, COALESCE('/api/catalog-photos/' || p.id, m.image_url) AS image_url
+      FROM menu_items m
+      LEFT JOIN catalog_photos p ON p.menu_item_id = m.id
+      WHERE m.id = $1 AND m.deleted_at IS NULL
     `, [req.params.id]);
 
     if (result.rows.length === 0) {
@@ -570,7 +636,7 @@ app.get('/api/menu-items/:id', async (req, res) => {
 const calculateMenuMargin = (cost, price) =>
   cost != null && Number(price) > 0 ? ((price - cost) / price * 100) : null;
 
-app.post('/api/menu-items', async (req, res) => {
+app.post('/api/menu-items', optionalPhotoAdmin, readPhoto, async (req, res) => {
   const { 
     name, description, category, cost_per_serving, 
     selling_price, is_vegetarian, prep_time_minutes, 
@@ -582,7 +648,7 @@ app.post('/api/menu-items', async (req, res) => {
     await client.query('BEGIN');
 
     const businessResult = await client.query('SELECT id FROM businesses LIMIT 1');
-    const businessId = businessResult.rows[0]?.id;
+    const businessId = req.catalogPhoto || image_url ? req.user.business_id : businessResult.rows[0]?.id;
 
     if (!businessId) {
       await client.query('ROLLBACK');
@@ -602,7 +668,10 @@ app.post('/api/menu-items', async (req, res) => {
       is_vegetarian, prep_time_minutes, image_url
     ]);
 
-    const itemId = itemResult.rows[0].id;
+    const item = itemResult.rows[0];
+    const itemId = item.id;
+    const photoUrl = await saveCatalogPhoto(client, 'menu_item_id', itemId, req.catalogPhoto);
+    if (photoUrl !== undefined) item.image_url = photoUrl;
 
     // Insert ingredients (preventing duplicate inventory items)
     if (Array.isArray(ingredients) && ingredients.length > 0) {
@@ -637,7 +706,7 @@ app.post('/api/menu-items', async (req, res) => {
     res.status(201).json({ 
       success: true, 
       message: 'Menu item created successfully',
-      data: itemResult.rows[0]
+      data: item
     });
   } catch (error) {
     await client.query('ROLLBACK');
@@ -649,7 +718,7 @@ app.post('/api/menu-items', async (req, res) => {
 });
 
 // UPDATE menu item (including recipe ingredients)
-app.put('/api/menu-items/:id', async (req, res) => {
+app.put('/api/menu-items/:id', optionalPhotoAdmin, readPhoto, async (req, res) => {
   const { 
     name, description, category, cost_per_serving, 
     selling_price, is_vegetarian, prep_time_minutes, 
@@ -666,19 +735,25 @@ app.put('/api/menu-items/:id', async (req, res) => {
           cost_per_serving = $4, selling_price = $5,
           margin_percent = $6, is_vegetarian = $7, prep_time_minutes = $8,
           is_available = COALESCE($9, is_available),
+          image_url = CASE WHEN $11 THEN NULL ELSE image_url END,
           updated_at = NOW()
       WHERE id = $10 AND deleted_at IS NULL
+        AND ($12::uuid IS NULL OR business_id = $12)
       RETURNING *
     `, [
       name, description, category, cost_per_serving, selling_price,
       calculateMenuMargin(cost_per_serving, selling_price),
-      is_vegetarian, prep_time_minutes, is_available, req.params.id
+      is_vegetarian, prep_time_minutes, is_available, req.params.id,
+      req.catalogPhoto === null, req.catalogPhoto !== undefined ? req.user.business_id : null
     ]);
 
     if (result.rows.length === 0) {
       await client.query('ROLLBACK');
       return res.status(404).json({ success: false, error: 'Menu item not found' });
     }
+
+    const photoUrl = await saveCatalogPhoto(client, 'menu_item_id', req.params.id, req.catalogPhoto);
+    if (photoUrl !== undefined) result.rows[0].image_url = photoUrl;
 
     // Update ingredients if provided
     if (Array.isArray(ingredients)) {
@@ -760,9 +835,10 @@ app.get('/api/inventory', async (req, res) => {
       SELECT 
         i.id, i.name, i.category, i.unit, i.current_stock, i.minimum_stock,
         i.cost_per_unit, i.supplier_id, COALESCE(s.name, i.supplier_name) AS supplier_name,
-        i.expiry_date, i.is_active
+        i.expiry_date, i.is_active, '/api/catalog-photos/' || p.id AS image_url
       FROM inventory_items i
       LEFT JOIN suppliers s ON s.id = i.supplier_id AND s.business_id = i.business_id
+      LEFT JOIN catalog_photos p ON p.inventory_item_id = i.id
       WHERE i.is_active = true
       ORDER BY i.name
     `);
@@ -792,7 +868,7 @@ app.get('/api/inventory/low-stock', async (req, res) => {
 });
 
 // CREATE inventory item
-app.post('/api/inventory', async (req, res) => {
+app.post('/api/inventory', optionalPhotoAdmin, readPhoto, async (req, res) => {
   const { 
     name, category, unit, cost_per_unit, 
     current_stock, minimum_stock, supplier_id, supplier_name
@@ -807,7 +883,7 @@ app.post('/api/inventory', async (req, res) => {
     await client.query('BEGIN');
 
     const businessResult = await client.query('SELECT id FROM businesses LIMIT 1');
-    const businessId = businessResult.rows[0]?.id;
+    const businessId = req.catalogPhoto ? req.user.business_id : businessResult.rows[0]?.id;
 
     if (!businessId) {
       await client.query('ROLLBACK');
@@ -830,6 +906,8 @@ app.post('/api/inventory', async (req, res) => {
     ]);
 
     const newItem = result.rows[0];
+    const photoUrl = await saveCatalogPhoto(client, 'inventory_item_id', newItem.id, req.catalogPhoto);
+    if (photoUrl !== undefined) newItem.image_url = photoUrl;
 
     await client.query('COMMIT');
 
@@ -842,6 +920,33 @@ app.post('/api/inventory', async (req, res) => {
     await client.query('ROLLBACK');
     console.error('Error creating inventory item:', error);
     res.status(500).json({ success: false, error: error.message });
+  } finally {
+    client.release();
+  }
+});
+
+app.put('/api/inventory/:id/photo', ...photoSession, requireAdmin, readPhoto, async (req, res) => {
+  if (req.catalogPhoto === undefined) {
+    return res.status(400).json({ success: false, error: 'Choose a photo to save or remove.' });
+  }
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const { rowCount } = await client.query(`
+      SELECT id FROM inventory_items
+      WHERE id = $1 AND business_id = $2 AND is_active
+      FOR UPDATE
+    `, [req.params.id, req.user.business_id]);
+    if (rowCount === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ success: false, error: 'Inventory item not found' });
+    }
+    await saveCatalogPhoto(client, 'inventory_item_id', req.params.id, req.catalogPhoto);
+    await client.query('COMMIT');
+    res.json({ success: true });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
   } finally {
     client.release();
   }
@@ -2090,6 +2195,9 @@ app.use((req, res) => {
 });
 
 app.use((err, req, res, next) => {
+  if (err.type === 'entity.too.large') {
+    return res.status(413).json({ success: false, error: 'This upload is too large.' });
+  }
   console.error('Server error:', err);
   res.status(500).json({ success: false, error: 'Internal server error' });
 });

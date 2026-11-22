@@ -7,6 +7,9 @@ import type { InventoryItem } from '@/types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { PhotoPicker } from '@/components/ui/photo-picker';
+import { catalogPhotoSource } from '@/lib/catalog-photo';
+import { useAuth } from '@/contexts/AuthContext';
 import { Progress } from '@/components/ui/progress';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
@@ -35,11 +38,13 @@ import {
   Trash2,
   Loader2,
   ArrowUpDown,
+  ImagePlus,
 } from 'lucide-react';
 import {
   useInventory,
   useLowStockItems,
   useCreateInventoryItem,
+  useUpdateInventoryPhoto,
   useDeleteInventoryItem,
   useSuppliers,
   useAdjustStock,
@@ -65,6 +70,11 @@ const inventoryCategory = (item: InventoryItem) => item.category || 'General';
 const inventoryValue = (item: InventoryItem) => Number(item.current_stock || 0) * Number(item.cost_per_unit || 0);
 
 export default function InventoryPage() {
+  const { isAdmin } = useAuth();
+  const canEditPhotos = isAdmin() && !isMockMode();
+  const [photo, setPhoto] = useState<string | null>();
+  const [photoPending, setPhotoPending] = useState(false);
+  const [photoItem, setPhotoItem] = useState<InventoryItem | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [formData, setFormData] = useState({
@@ -97,6 +107,7 @@ export default function InventoryPage() {
   const { data: menuItems = [] } = useMenuItems();
 
   const createItem = useCreateInventoryItem();
+  const updatePhoto = useUpdateInventoryPhoto();
   const deleteItem = useDeleteInventoryItem();
   const adjustStock = useAdjustStock();
 
@@ -130,6 +141,7 @@ export default function InventoryPage() {
   const totalItems = inventory.length;
 
   const handleAddItem = async () => {
+    if (isMockMode() || photoPending || createItem.isPending) return;
     if (!formData.name.trim()) {
       toast.error('Enter an ingredient name');
       return;
@@ -148,6 +160,7 @@ export default function InventoryPage() {
         cost_per_unit: parseFloat(formData.cost_per_unit),
         supplier_id: formData.supplier_id || null,
         minimum_stock: formData.minimum_stock ? parseFloat(formData.minimum_stock) : 2,
+        photo: photo ?? undefined,
       });
       toast.success('Ingredient created in inventory!');
       setIsAddDialogOpen(false);
@@ -162,6 +175,22 @@ export default function InventoryPage() {
       });
     } catch (error: any) {
       toast.error(error.response?.data?.error || 'Failed to add item');
+    }
+  };
+
+  const resetPhoto = () => {
+    setPhoto(undefined);
+    setPhotoPending(false);
+  };
+
+  const handleSavePhoto = async () => {
+    if (!photoItem || photo === undefined || !canEditPhotos || photoPending || updatePhoto.isPending) return;
+    try {
+      await updatePhoto.mutateAsync({ id: photoItem.id, photo });
+      toast.success(photo === null ? 'Photo removed' : 'Photo saved');
+      setPhotoItem(null);
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || 'Failed to save photo');
     }
   };
 
@@ -257,7 +286,7 @@ export default function InventoryPage() {
         </div>
         <Button
           className="bg-[#dc2626] hover:bg-[#b91c1c] text-white shrink-0 shadow-xs"
-          onClick={() => setIsAddDialogOpen(true)}
+          onClick={() => { resetPhoto(); setIsAddDialogOpen(true); }}
         >
           <Plus className="size-4 mr-1.5" />
           Add Ingredient
@@ -274,6 +303,15 @@ export default function InventoryPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
+            {isAdmin() && (
+              <PhotoPicker
+                label="Ingredient photo"
+                source={photo}
+                onChange={setPhoto}
+                onPendingChange={setPhotoPending}
+                disabled={!canEditPhotos || createItem.isPending}
+              />
+            )}
             <div>
               <label className="text-sm font-medium">Ingredient Name *</label>
               <Input
@@ -387,7 +425,7 @@ export default function InventoryPage() {
             <Button
               className="bg-[#dc2626] hover:bg-[#b91c1c] text-white"
               onClick={handleAddItem}
-              disabled={isMockMode() || createItem.isPending}
+              disabled={isMockMode() || createItem.isPending || photoPending}
             >
               {createItem.isPending ? (
                 <>
@@ -400,6 +438,28 @@ export default function InventoryPage() {
                   Add Ingredient
                 </>
               )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={photoItem !== null} onOpenChange={(open) => { if (!open) setPhotoItem(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{photoItem?.image_url ? 'Edit ingredient photo' : 'Add ingredient photo'}</DialogTitle>
+            <DialogDescription>{photoItem?.name}</DialogDescription>
+          </DialogHeader>
+          <PhotoPicker
+            label="Ingredient photo"
+            source={photo === undefined && photoItem?.image_url ? catalogPhotoSource(photoItem.image_url) : photo}
+            onChange={setPhoto}
+            onPendingChange={setPhotoPending}
+            disabled={updatePhoto.isPending}
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPhotoItem(null)}>Cancel</Button>
+            <Button onClick={handleSavePhoto} disabled={photo === undefined || photoPending || updatePhoto.isPending}>
+              {updatePhoto.isPending ? 'Saving…' : 'Save photo'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -506,7 +566,12 @@ export default function InventoryPage() {
                 return (
                   <TableRow role="row" key={item.id} className="border-border hover:bg-secondary/40 transition-colors">
                     <TableCell role="cell" className="ingredient-name font-semibold text-slate-900">
-                      {item.name}
+                      <div className="flex min-w-0 items-center gap-2.5">
+                        {item.image_url && (
+                          <img src={catalogPhotoSource(item.image_url)} alt="" loading="lazy" className="size-10 shrink-0 rounded-md object-cover" />
+                        )}
+                        <span className="min-w-0 break-words">{item.name}</span>
+                      </div>
                     </TableCell>
                     <TableCell role="cell" className="ingredient-category">
                       <Badge variant="outline" className="text-xs font-medium bg-slate-50 border-slate-200">
@@ -566,6 +631,18 @@ export default function InventoryPage() {
                           <ArrowUpDown className="size-3.5 mr-1 text-[#dc2626]" />
                           Adjust / Restock
                         </Button>
+                        {canEditPhotos && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            aria-label={`${item.image_url ? 'Edit' : 'Add'} photo for ${item.name}`}
+                            title={item.image_url ? 'Edit photo' : 'Add photo'}
+                            onClick={() => { resetPhoto(); setPhotoItem(item); }}
+                            className="size-8 p-0 text-slate-500 max-md:size-11 max-md:border max-md:border-input max-md:bg-background"
+                          >
+                            <ImagePlus className="size-4" />
+                          </Button>
+                        )}
                         <Button
                           variant="ghost"
                           size="sm"

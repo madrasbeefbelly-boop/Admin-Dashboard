@@ -63,6 +63,8 @@ export const inventoryAPI = {
   // Update inventory item
   update: (id, data) => api.put(`/inventory/${id}`, data),
 
+  updatePhoto: (id: string, photo: string | null) => api.put(`/inventory/${id}/photo`, { photo }),
+
   // Update stock
   updateStock: (id, data) => api.put(`/inventory/${id}/stock`, data),
 
