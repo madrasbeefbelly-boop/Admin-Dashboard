@@ -1,4 +1,4 @@
-export type MeasurementUnit = 'kg' | 'g' | 'L' | 'ml' | 'pieces';
+export type MeasurementUnit = 'kg' | 'g' | 'L' | 'ml' | 'pieces' | 'pack';
 
 export const MEASUREMENT_UNITS: { label: string; value: MeasurementUnit; family: 'weight' | 'volume' | 'count' }[] = [
   { label: 'Kilograms (kg)', value: 'kg', family: 'weight' },
@@ -6,6 +6,7 @@ export const MEASUREMENT_UNITS: { label: string; value: MeasurementUnit; family:
   { label: 'Liters (L)', value: 'L', family: 'volume' },
   { label: 'Milliliters (ml)', value: 'ml', family: 'volume' },
   { label: 'Pieces (pcs)', value: 'pieces', family: 'count' },
+  { label: 'Packs (Pck)', value: 'pack', family: 'count' },
 ];
 
 export function normalizeUnit(u: string): string {
@@ -15,6 +16,7 @@ export function normalizeUnit(u: string): string {
   if (['l', 'liter', 'liters', 'litre', 'litres'].includes(s)) return 'L';
   if (['ml', 'milliliter', 'milliliters'].includes(s)) return 'ml';
   if (['piece', 'pieces', 'pcs', 'pc'].includes(s)) return 'pieces';
+  if (['pack', 'packs', 'pck'].includes(s)) return 'pack';
   return s;
 }
 
@@ -32,6 +34,7 @@ export function getCompatibleUnits(unit: string): MeasurementUnit[] {
   const u = normalizeUnit(unit);
   if (['kg', 'g'].includes(u)) return ['kg', 'g'];
   if (['L', 'ml'].includes(u)) return ['L', 'ml'];
+  if (u === 'pack') return ['pack'];
   return ['pieces'];
 }
 

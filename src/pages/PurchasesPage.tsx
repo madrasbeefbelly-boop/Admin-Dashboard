@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { StatCard } from '@/components/dashboard/StatCard';
 import { purchaseAmount, purchaseDay, statSeries } from '@/lib/stat-series';
+import { normalizeUnit } from '@/lib/units';
 import { isMockMode } from '@/lib/mock-mode';
 import { usePurchases, useCreatePurchase, useInventory, useSuppliers, useCreateSupplier, useDeletePurchase, useDeleteSupplier } from '@/hooks/api';
 import { Badge } from '@/components/ui/badge';
@@ -40,6 +41,17 @@ interface PurchaseItemRow {
   item_id: string;
   quantity: string;
   cost: string;
+}
+
+const unitExamples: Record<string, string> = { kg: '2.5', g: '250', L: '1.5', ml: '500', pack: '2', pieces: '12' };
+
+function purchaseUnit(unit: string) {
+  const normalized = normalizeUnit(unit);
+  return {
+    label: normalized === 'pack' ? 'Pck' : normalized === 'pieces' ? 'pcs' : normalized || 'Unit',
+    whole: normalized === 'pack' || normalized === 'pieces',
+    example: unitExamples[normalized] ?? '1',
+  };
 }
 
 const getTodayString = () => {
@@ -202,13 +214,19 @@ export default function PurchasesPage() {
 
     for (let i = 0; i < itemsList.length; i++) {
       const it = itemsList[i];
-      if (!it.item_id) {
+      const selected = inventoryItems.find((item) => item.id === it.item_id);
+      if (!selected) {
         toast.error(`Please select an item for Item #${i + 1}`);
         return;
       }
       const q = Number(it.quantity);
+      const unit = purchaseUnit(selected.unit);
       if (!Number.isFinite(q) || q <= 0 || Number(q.toFixed(2)) !== q) {
-        toast.error(`Please enter a valid quantity for Item #${i + 1}`);
+        toast.error(`Enter a positive amount in ${unit.label} with up to two decimal places for Item #${i + 1}.`);
+        return;
+      }
+      if (unit.whole && !Number.isInteger(q)) {
+        toast.error(`Enter a whole number in ${unit.label} for Item #${i + 1}.`);
         return;
       }
       const c = Number(it.cost);
@@ -347,6 +365,7 @@ export default function PurchasesPage() {
               <div className="space-y-3">
                 {itemsList.map((row, index) => {
                   const selectedInv = inventoryItems.find((it) => it.id === row.item_id);
+                  const unit = purchaseUnit(selectedInv?.unit ?? '');
                   const subtotal = (parseFloat(row.quantity) || 0) * (parseFloat(row.cost) || 0);
 
                   return (
@@ -389,7 +408,7 @@ export default function PurchasesPage() {
                           <SelectContent>
                             {inventoryItems.map((item) => (
                               <SelectItem key={item.id} value={item.id}>
-                                {item.name} ({item.unit})
+                                {item.name} ({purchaseUnit(item.unit).label})
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -409,21 +428,24 @@ export default function PurchasesPage() {
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
                         <div>
                           <label htmlFor={`purchase-quantity-${row.id}`} className="text-xs font-medium text-muted-foreground block mb-1">
-                            Quantity *
+                            Unit *
                           </label>
                           <div className="flex gap-1.5">
                             <Input
                               type="number"
                               id={`purchase-quantity-${row.id}`}
-                              step="0.01"
-                              min="0.01"
-                              placeholder="e.g. 50"
+                              step={unit.whole ? '1' : '0.01'}
+                              min={unit.whole ? '1' : '0.01'}
+                              inputMode={unit.whole ? 'numeric' : 'decimal'}
+                              disabled={!selectedInv}
+                              aria-describedby={`purchase-unit-${row.id}`}
+                              placeholder={selectedInv ? `e.g. ${unit.example}` : 'Select an item first'}
                               value={row.quantity}
                               onChange={(e) => updateItemRow(row.id, 'quantity', e.target.value)}
                               className="h-9 min-w-0 text-sm"
                             />
-                            <span className="h-9 min-w-16 px-2 flex items-center justify-center rounded-md border border-input bg-muted/70 text-xs text-muted-foreground font-medium shrink-0">
-                              {selectedInv?.unit || 'Unit'}
+                            <span id={`purchase-unit-${row.id}`} className="h-9 min-w-16 px-2 flex items-center justify-center rounded-md border border-input bg-muted/70 text-xs text-muted-foreground font-medium shrink-0">
+                              {unit.label}
                             </span>
                           </div>
                         </div>

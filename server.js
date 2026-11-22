@@ -413,6 +413,7 @@ function normalizeUnit(u) {
   if (['l', 'liter', 'liters', 'litre', 'litres'].includes(s)) return 'L';
   if (['ml', 'milliliter', 'milliliters'].includes(s)) return 'ml';
   if (['piece', 'pieces', 'pcs', 'pc'].includes(s)) return 'pieces';
+  if (['pack', 'packs', 'pck'].includes(s)) return 'pack';
   return s;
 }
 
