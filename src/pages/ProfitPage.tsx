@@ -200,7 +200,7 @@ export default function ProfitPage() {
           <section className="space-y-4" aria-labelledby="business-estimate-title">
             <div>
               <h2 id="business-estimate-title" className="text-xl font-semibold">All-time business estimate</h2>
-              <p className="mt-1 text-sm text-muted-foreground">Sales less logged purchases. Operating expenses are excluded.</p>
+              <p className="mt-1 text-sm text-muted-foreground">Sales less logged purchases.</p>
             </div>
             <div className="grid grid-cols-2 gap-3 md:gap-4 xl:grid-cols-4">
               <StatCard title="Sales Revenue" value={currency.format(revenue)} icon={TrendingUp}

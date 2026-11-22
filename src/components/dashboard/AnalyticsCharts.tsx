@@ -24,7 +24,7 @@ const currency = new Intl.NumberFormat('en-IN', {
 
 const chartViews = {
   revenue: { title: 'Revenue', description: 'Served-order income and logged purchases' },
-  profit: { title: 'Profit & Loss', description: 'Served-order income minus logged purchases. Operating expenses are excluded.' },
+  profit: { title: 'Profit & Loss', description: 'Served-order income minus logged purchases.' },
   ingredients: { title: 'Ingredient Usage', description: 'Ingredient quantities deducted from stock for orders' },
   orders: { title: 'Orders Volume', description: 'Orders placed and served, grouped by the date they were placed' },
 };
