@@ -18,7 +18,15 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
-import { enqueueWhatsApp, formatChatId, queueLowStockAlert, queueOrderAlert } from './whatsappDelivery.js';
+import {
+  enqueueWhatsApp,
+  formatChatId,
+  queueLowStockAlert,
+  queueOrderAlert,
+  queueOrderServedAlert,
+  queueOrderCancelledAlert,
+  queueOrderDeletedAlert,
+} from './whatsappDelivery.js';
 
 // Global error handlers to prevent crashes from Windows file locks (e.g. Chrome CrashpadMetrics)
 process.on('uncaughtException', (err) => {
@@ -1800,7 +1808,6 @@ app.post('/api/orders', async (req, res) => {
       `, [order.id, item.menu_item_id || null, item.name.trim(), item.category || null, item.unit_price, item.quantity]);
     }
 
-    await queueOrderAlert(client, order, items);
     await client.query('COMMIT');
 
     res.status(201).json({ success: true, data: { ...order, items } });
@@ -1949,8 +1956,18 @@ const updateOrderStatusHandler = async (req, res) => {
         inventory_deducted_at = CASE WHEN $2 THEN NOW() ELSE inventory_deducted_at END,
         cancellation_reason = CASE WHEN $3 THEN $4 ELSE cancellation_reason END, updated_at = NOW()
       WHERE id = $5
-      RETURNING id, status, inventory_deducted
+      RETURNING *
     `, [status, shouldDeduct, canceledStatuses.includes(status), cancellation_reason || 'Canceled by staff', orderId]);
+
+    const { rows: items } = await client.query('SELECT name, item_name, quantity, unit_price FROM order_items WHERE order_id = $1', [orderId]);
+    const fullOrder = { ...order, ...updated };
+
+    if (status === 'Served' && order.status !== 'Served') {
+      await queueOrderServedAlert(client, fullOrder, items);
+    } else if (canceledStatuses.includes(status) && !canceledStatuses.includes(order.status)) {
+      await queueOrderCancelledAlert(client, fullOrder, items, cancellation_reason);
+    }
+
     await client.query('COMMIT');
 
     res.json({ success: true, data: { ...updated, deduction_count: deductedRequirements.length } });
@@ -1968,18 +1985,27 @@ app.put('/api/orders/:id/status', updateOrderStatusHandler);
 
 // DELETE order
 app.delete('/api/orders/:id', async (req, res) => {
+  const client = await pool.connect();
   try {
-    const result = await pool.query(
-      'DELETE FROM orders WHERE id = $1 RETURNING id',
-      [req.params.id],
-    );
-    if (result.rows.length === 0) {
+    await client.query('BEGIN');
+    const { rows: [order] } = await client.query('SELECT * FROM orders WHERE id = $1 FOR UPDATE', [req.params.id]);
+    if (!order) {
+      await client.query('ROLLBACK');
       return res.status(404).json({ success: false, error: 'Order not found' });
     }
+    const { rows: items } = await client.query('SELECT name, item_name, quantity, unit_price FROM order_items WHERE order_id = $1', [req.params.id]);
+    await client.query('DELETE FROM order_ingredient_consumptions WHERE order_id = $1', [req.params.id]).catch(() => {});
+    await client.query('DELETE FROM order_items WHERE order_id = $1', [req.params.id]).catch(() => {});
+    await client.query('DELETE FROM orders WHERE id = $1', [req.params.id]);
+    await queueOrderDeletedAlert(client, order, items);
+    await client.query('COMMIT');
     res.json({ success: true, message: 'Order deleted' });
   } catch (error) {
+    await client.query('ROLLBACK');
     console.error('Error deleting order:', error);
     res.status(500).json({ success: false, error: error.message });
+  } finally {
+    client.release();
   }
 });
 

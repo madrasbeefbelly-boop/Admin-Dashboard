@@ -485,9 +485,9 @@ export default function SettingsPage() {
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-foreground">🔔 New Order Alerts</p>
+                    <p className="text-sm font-medium text-foreground">🔔 Order Status Alerts</p>
                     <p className="text-xs text-muted-foreground">
-                      Instantly receive WhatsApp pings when a customer or table places an order
+                      Instantly receive WhatsApp pings when an order is marked Served, Cancelled, or Deleted
                     </p>
                   </div>
                   <Switch
