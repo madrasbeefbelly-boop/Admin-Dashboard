@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { StatCard } from '@/components/dashboard/StatCard';
-import { statSeries } from '@/lib/stat-series';
+import { formatStatCurrency, statSeries } from '@/lib/stat-series';
 import { isMockMode } from '@/lib/mock-mode';
 import type { InventoryItem } from '@/types';
 import { Badge } from '@/components/ui/badge';
@@ -267,7 +267,7 @@ export default function InventoryPage() {
     <DashboardLayout title="Inventory" subtitle="Track your stock levels and supplies">
       <div className="summary-counts mb-6 grid grid-cols-3 gap-2 md:gap-4">
         <StatCard title="Stock Value" value={`₹${(totalValue / 1000).toFixed(0)}K`} icon={Package}
-          dataPoints={statSeries(inventory, inventoryCategory, inventoryValue)} chartLabel="Stock value by category" />
+          dataPoints={statSeries(inventory, inventoryCategory, inventoryValue)} chartLabel="Stock value by category" formatValue={formatStatCurrency} />
         <StatCard title="Low Stock Items" value={lowStockCount} icon={AlertTriangle} accent="text-warning"
           dataPoints={statSeries(inventory.filter((item) => lowStockIds.has(item.id)), inventoryCategory)} chartLabel="Low stock items by category" />
         <StatCard title="Total Items" value={totalItems} icon={TrendingUp} accent="text-success"

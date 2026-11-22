@@ -1,4 +1,4 @@
-import { useState, useMemo, type ReactNode } from 'react';
+import { useState, useMemo, useId, type ReactNode } from 'react';
 import {
   ResponsiveContainer,
   AreaChart,
@@ -12,6 +12,8 @@ import { useOrders, usePurchases } from '@/hooks/api';
 import { ChevronDown } from 'lucide-react';
 import { isServedOrder } from '@/lib/utils';
 import { FoodMap } from './FoodMap';
+import { ChartDetails } from './ChartDetails';
+import { formatStatCurrency } from '@/lib/stat-series';
 import { OrderBreakdown } from './OrderBreakdown';
 
 const currency = new Intl.NumberFormat('en-IN', {
@@ -133,6 +135,107 @@ export function AnalyticsCharts({ summaryCards }: { summaryCards: ReactNode }) {
     return { domain: [0, max] as [number, number], ticks };
   }, [revenueChartData]);
 
+  const chartId = useId();
+  const renderRevenueChart = (id: string, className: string) => {
+    const expenseGradient = id + '-expense';
+    const incomeGradient = id + '-income';
+    return (
+      <div className={className}>
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart
+            data={revenueChartData}
+            margin={{ top: 15, right: 8, left: 0, bottom: 0 }}
+          >
+            <defs>
+              {/* Purple/Violet Gradient (Expenses) */}
+              <linearGradient id={expenseGradient} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#c084fc" stopOpacity={0.65} />
+                <stop offset="95%" stopColor="#c084fc" stopOpacity={0.08} />
+              </linearGradient>
+              {/* Vibrant Red Gradient (Income - Matching Madras Beef Belly Logo) */}
+              <linearGradient id={incomeGradient} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#dc2626" stopOpacity={0.85} />
+                <stop offset="95%" stopColor="#dc2626" stopOpacity={0.15} />
+              </linearGradient>
+            </defs>
+
+            <CartesianGrid
+              strokeDasharray="0 0"
+              vertical={false}
+              stroke="#cbd5e1"
+              strokeOpacity={0.5}
+              strokeWidth={1}
+            />
+
+            <XAxis
+              dataKey="label"
+              tickLine={false}
+              axisLine={false}
+              tick={{ fontSize: 11, fill: '#94a3b8', fontWeight: 500 }}
+              dy={6}
+            />
+
+            <YAxis
+              tickLine={false}
+              axisLine={false}
+              width={38}
+              tickMargin={4}
+              ticks={revenueYAxis.ticks}
+              domain={revenueYAxis.domain}
+              tick={{ fontSize: 11, fill: '#94a3b8', fontWeight: 600 }}
+              tickFormatter={(val) => (val === 0 ? '0' : val >= 1000 ? `${val / 1000}k` : `${val}`)}
+            />
+
+            <Tooltip
+              content={({ active, payload, label }) => {
+                if (!active || !payload?.length) return null;
+                return (
+                  <div className="rounded-xl border border-slate-100 bg-white p-3 text-xs shadow-lg space-y-1.5 min-w-[130px]">
+                    <p className="font-bold text-slate-800">{label}</p>
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="flex items-center gap-1.5 text-slate-500">
+                        <span className="size-2 rounded-full bg-[#dc2626]" /> Income
+                      </span>
+                      <span className="font-semibold text-slate-900 tabular-nums">
+                        {currency.format(Number(payload.find((item) => item.dataKey === 'income')?.value ?? 0))}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="flex items-center gap-1.5 text-slate-500">
+                        <span className="size-2 rounded-full bg-[#c084fc]" /> Expense
+                      </span>
+                      <span className="font-semibold text-slate-900 tabular-nums">
+                        {currency.format(Number(payload.find((item) => item.dataKey === 'expense')?.value ?? 0))}
+                      </span>
+                    </div>
+                  </div>
+                );
+              }}
+            />
+
+            {/* Overlapping Waves derived from actual data */}
+            <Area
+              type="monotone"
+              dataKey="expense"
+              stroke="#c084fc"
+              strokeWidth={2.5}
+              fillOpacity={1}
+              fill={'url(#' + expenseGradient + ')'}
+            />
+            <Area
+              type="monotone"
+              dataKey="income"
+              stroke="#dc2626"
+              strokeWidth={2.5}
+              fillOpacity={1}
+              fill={'url(#' + incomeGradient + ')'}
+            />
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-6 mb-8">
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -141,7 +244,7 @@ export function AnalyticsCharts({ summaryCards }: { summaryCards: ReactNode }) {
         <div className="order-1 md:order-2 lg:col-span-7 card-premium p-4 sm:p-6 flex flex-col justify-between overflow-hidden">
           <div className="px-1 sm:px-0">
             {/* Header: Title + Filter Toggle */}
-            <div className="flex items-start justify-between gap-4 mb-4">
+            <div className="flex flex-wrap items-start justify-between gap-2 mb-4">
               <div>
                 <div className="flex items-center gap-2">
                   <span className="w-1.5 h-5 bg-[#dc2626] rounded-full inline-block" />
@@ -155,7 +258,7 @@ export function AnalyticsCharts({ summaryCards }: { summaryCards: ReactNode }) {
               </div>
 
               {/* Monthly / Weekly Dropdown */}
-              <div className="relative inline-block">
+              <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => setTimeFilter((prev) => (prev === 'Monthly' ? 'Weekly' : 'Monthly'))}
@@ -164,6 +267,23 @@ export function AnalyticsCharts({ summaryCards }: { summaryCards: ReactNode }) {
                   {timeFilter}
                   <ChevronDown className="size-3.5 text-slate-400" />
                 </button>
+                <ChartDetails title="Revenue" description={timeFilter === 'Weekly' ? 'Income and expense for the last 7 days' : 'Income and expense for the last 6 months'}>
+                  {renderRevenueChart(chartId + '-detail', 'h-56 w-full sm:h-72')}
+                  <table className="w-full table-fixed text-sm">
+                    <thead className="border-b border-input text-xs text-muted-foreground">
+                      <tr><th scope="col" className="p-2 text-left">Period</th><th scope="col" className="p-2 text-right">Income</th><th scope="col" className="p-2 text-right">Expense</th></tr>
+                    </thead>
+                    <tbody>
+                      {revenueChartData.map(({ key, label, income, expense }) => (
+                        <tr key={key} className="border-b border-input last:border-0">
+                          <th scope="row" className="p-2 text-left font-medium">{label}</th>
+                          <td className="p-2 text-right tabular-nums wrap-anywhere">{formatStatCurrency(income)}</td>
+                          <td className="p-2 text-right tabular-nums wrap-anywhere">{formatStatCurrency(expense)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </ChartDetails>
               </div>
             </div>
 
@@ -185,99 +305,7 @@ export function AnalyticsCharts({ summaryCards }: { summaryCards: ReactNode }) {
           </div>
 
           {/* Layered Multi-Wave Area Chart - Edge-to-edge wide graph */}
-          <div className="h-64 sm:h-72 w-full pt-2">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart
-                data={revenueChartData}
-                margin={{ top: 15, right: 8, left: 0, bottom: 0 }}
-              >
-                <defs>
-                  {/* Purple/Violet Gradient (Expenses) */}
-                  <linearGradient id="purpleWaveGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#c084fc" stopOpacity={0.65} />
-                    <stop offset="95%" stopColor="#c084fc" stopOpacity={0.08} />
-                  </linearGradient>
-                  {/* Vibrant Red Gradient (Income - Matching Madras Beef Belly Logo) */}
-                  <linearGradient id="redWaveGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#dc2626" stopOpacity={0.85} />
-                    <stop offset="95%" stopColor="#dc2626" stopOpacity={0.15} />
-                  </linearGradient>
-                </defs>
-
-                <CartesianGrid
-                  strokeDasharray="0 0"
-                  vertical={false}
-                  stroke="#cbd5e1"
-                  strokeOpacity={0.5}
-                  strokeWidth={1}
-                />
-
-                <XAxis
-                  dataKey="label"
-                  tickLine={false}
-                  axisLine={false}
-                  tick={{ fontSize: 11, fill: '#94a3b8', fontWeight: 500 }}
-                  dy={6}
-                />
-
-                <YAxis
-                  tickLine={false}
-                  axisLine={false}
-                  width={38}
-                  tickMargin={4}
-                  ticks={revenueYAxis.ticks}
-                  domain={revenueYAxis.domain}
-                  tick={{ fontSize: 11, fill: '#94a3b8', fontWeight: 600 }}
-                  tickFormatter={(val) => (val === 0 ? '0' : val >= 1000 ? `${val / 1000}k` : `${val}`)}
-                />
-
-                <Tooltip
-                  content={({ active, payload, label }) => {
-                    if (!active || !payload?.length) return null;
-                    return (
-                      <div className="rounded-xl border border-slate-100 bg-white p-3 text-xs shadow-lg space-y-1.5 min-w-[130px]">
-                        <p className="font-bold text-slate-800">{label}</p>
-                        <div className="flex items-center justify-between gap-3">
-                          <span className="flex items-center gap-1.5 text-slate-500">
-                            <span className="size-2 rounded-full bg-[#dc2626]" /> Income
-                          </span>
-                          <span className="font-semibold text-slate-900 tabular-nums">
-                            {currency.format(Number(payload[1]?.value ?? payload[0]?.value))}
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between gap-3">
-                          <span className="flex items-center gap-1.5 text-slate-500">
-                            <span className="size-2 rounded-full bg-[#c084fc]" /> Expense
-                          </span>
-                          <span className="font-semibold text-slate-900 tabular-nums">
-                            {currency.format(Number(payload[0]?.value))}
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  }}
-                />
-
-                {/* Overlapping Waves derived from actual data */}
-                <Area
-                  type="monotone"
-                  dataKey="expense"
-                  stroke="#c084fc"
-                  strokeWidth={2.5}
-                  fillOpacity={1}
-                  fill="url(#purpleWaveGradient)"
-                />
-                <Area
-                  type="monotone"
-                  dataKey="income"
-                  stroke="#dc2626"
-                  strokeWidth={2.5}
-                  fillOpacity={1}
-                  fill="url(#redWaveGradient)"
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
+          {renderRevenueChart(chartId + '-inline', 'h-64 sm:h-72 w-full pt-2')}
         </div>
 
         {/* ── 4 SUMMARY BOXES (2nd on mobile, Top on desktop) ── */}

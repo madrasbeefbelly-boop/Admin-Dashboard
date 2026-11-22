@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { StatCard } from '@/components/dashboard/StatCard';
-import { purchaseAmount, purchaseDay, statSeries } from '@/lib/stat-series';
+import { formatStatCurrency, purchaseAmount, purchaseDay, statSeries } from '@/lib/stat-series';
 import { normalizeUnit } from '@/lib/units';
 import { isMockMode } from '@/lib/mock-mode';
 import { usePurchases, useCreatePurchase, useInventory, useSuppliers, useCreateSupplier, useDeletePurchase, useDeleteSupplier } from '@/hooks/api';
@@ -613,9 +613,9 @@ export default function PurchasesPage() {
         <StatCard title="Total Purchases" value={purchaseRecords.length} icon={ShoppingCart}
           dataPoints={statSeries(purchaseRecords, purchaseDay)} chartLabel="Purchases by day" />
         <StatCard title="This Month" value={`₹${(thisMonthSpent / 1000).toFixed(0)}K`} icon={TrendingDown}
-          accent="text-warning" dataPoints={statSeries(thisMonth, purchaseDay, purchaseAmount)} chartLabel="This month's spending by day" />
+          accent="text-warning" dataPoints={statSeries(thisMonth, purchaseDay, purchaseAmount)} chartLabel="This month's spending by day" formatValue={formatStatCurrency} />
         <StatCard title="Total Spent" value={`₹${(totalSpent / 1000).toFixed(0)}K`} icon={Calendar}
-          accent="text-info" dataPoints={statSeries(purchases, purchaseDay, purchaseAmount)} chartLabel="Total spending by day" />
+          accent="text-info" dataPoints={statSeries(purchases, purchaseDay, purchaseAmount)} chartLabel="Total spending by day" formatValue={formatStatCurrency} />
       </div>
 
       {/* Filters */}

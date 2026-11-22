@@ -7,11 +7,15 @@ import { Button } from '@/components/ui/button';
 import { useDashboardStats, useLowStockItems, useOrders, useMenuItems } from '@/hooks/api';
 import { Loader2, UtensilsCrossed, ClipboardList, Users, DollarSign } from 'lucide-react';
 import { isServedOrder } from '@/lib/utils';
+import { formatStatCurrency } from '@/lib/stat-series';
 
 const currency = new Intl.NumberFormat('en-IN', {
   style: 'currency',
   currency: 'INR',
   maximumFractionDigits: 0,
+});
+const businessDate = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit',
 });
 
 export default function Index() {
@@ -22,7 +26,6 @@ export default function Index() {
 
   const loading = stats.isPending || lowStock.isPending;
   const error = stats.isError || lowStock.isError;
-  const data = stats.data;
 
   // Calculate actual total sales from real orders
   const actualSales = useMemo(() => {
@@ -41,7 +44,7 @@ export default function Index() {
   }, [orders]);
 
   // Actual metrics values
-  const menusCount = menu.length > 0 ? menu.length : (Number(data?.inventory_count) || 0);
+  const menusCount = menu.length;
   const ordersCount = orders.length;
   const customersCount = uniqueCustomers;
   const incomeValue = currency.format(actualSales);
@@ -49,31 +52,32 @@ export default function Index() {
   // Compute past 7 days actual trend data for sparklines
   const past7DaysData = useMemo(() => {
     const days: { dateStr: string; orders: number; sales: number; customers: Set<string> }[] = [];
+    const now = Date.now();
     for (let i = 6; i >= 0; i--) {
-      const d = new Date();
-      d.setDate(d.getDate() - i);
-      const dateStr = d.toISOString().split('T')[0];
+      const dateStr = businessDate.format(now - i * 86_400_000);
       days.push({ dateStr, orders: 0, sales: 0, customers: new Set() });
     }
 
     for (const o of orders) {
       if (!o.created_at) continue;
-      const dStr = new Date(o.created_at).toISOString().split('T')[0];
+      const createdAt = Date.parse(o.created_at);
+      if (!Number.isFinite(createdAt)) continue;
+      const dStr = businessDate.format(createdAt);
       const match = days.find((day) => day.dateStr === dStr);
       if (match) {
         match.orders += 1;
         if (isServedOrder(o)) match.sales += Number(o.total_amount) || 0;
-        if (o.customer_name) match.customers.add(o.customer_name);
+        const name = o.customer_name?.trim().toLowerCase();
+        if (name) match.customers.add(name);
       }
     }
 
     return {
-      orders: days.map((d) => d.orders),
-      sales: days.map((d) => d.sales),
-      customers: days.map((d) => d.customers.size),
-      menus: Array(7).fill(menusCount),
+      orders: days.map((d) => ({ label: d.dateStr, value: d.orders })),
+      sales: days.map((d) => ({ label: d.dateStr, value: d.sales })),
+      customers: days.map((d) => ({ label: d.dateStr, value: d.customers.size })),
     };
-  }, [orders, menusCount]);
+  }, [orders]);
 
   return (
     <DashboardLayout title="Dashboard">
@@ -102,25 +106,31 @@ export default function Index() {
                 title="Menus"
                 value={menusCount}
                 icon={UtensilsCrossed}
-                dataPoints={past7DaysData.menus}
+                dataPoints={[{ label: 'Current menu count', value: menusCount }]}
+                chartLabel="Current menu count"
               />
               <StatCard
                 title="Orders"
                 value={ordersCount}
                 icon={ClipboardList}
                 dataPoints={past7DaysData.orders}
+                chartLabel="Orders by day over the last 7 days"
               />
               <StatCard
                 title="Customers"
                 value={customersCount}
                 icon={Users}
                 dataPoints={past7DaysData.customers}
+                chartStyle="bars"
+                chartLabel="Unique named customers per day over the last 7 days"
               />
               <StatCard
                 title="Income"
                 value={incomeValue}
                 icon={DollarSign}
                 dataPoints={past7DaysData.sales}
+                chartLabel="Income from served orders over the last 7 days"
+                formatValue={formatStatCurrency}
               />
             </div>
           )} />

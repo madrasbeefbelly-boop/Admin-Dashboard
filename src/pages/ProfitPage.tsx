@@ -14,6 +14,7 @@ import { purchaseAmount, purchaseDay, statSeries } from '@/lib/stat-series';
 import type { Order } from '@/types';
 
 const currency = new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' });
+const percent = new Intl.NumberFormat('en-IN', { style: 'percent', maximumFractionDigits: 2 });
 
 const businessDate = new Intl.DateTimeFormat('en-CA', {
   timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit',
@@ -83,7 +84,9 @@ export default function ProfitPage() {
   const dailySales = served.map((order) => ({ day: businessDate.format(new Date(order.created_at)), amount: Number(order.total_amount) }));
   const dailyExpenses = (purchases.data ?? []).map((item) => ({ day: purchaseDay(item), amount: -purchaseAmount(item) }));
   const dailyAmounts = (items: { day: string; amount: number }[]) => statSeries(items, (item) => item.day, (item) => item.amount);
-  const margins = (menu.data ?? []).filter((item) => item.margin_percent != null).map((item) => Number(item.margin_percent)).filter(Number.isFinite);
+  const margins = (menu.data ?? []).filter((item) => item.margin_percent != null)
+    .map((item) => ({ label: item.name, value: Number(item.margin_percent) }))
+    .filter((point) => Number.isFinite(point.value));
 
   return (
     <DashboardLayout title="Profit Calculator" subtitle="Compare the revenue and ingredient costs of the dishes you sell">
@@ -205,13 +208,13 @@ export default function ProfitPage() {
             </div>
             <div className="grid grid-cols-2 gap-3 md:gap-4 xl:grid-cols-4">
               <StatCard title="Sales Revenue" value={hasRevenue ? currency.format(revenue) : '—'} icon={TrendingUp}
-                dataPoints={hasManual ? [] : dailyAmounts(dailySales)} chartLabel="Recorded sales by day" />
+                dataPoints={hasManual ? [] : dailyAmounts(dailySales)} chartLabel="Recorded sales by day" formatValue={currency.format} />
               <StatCard title="Logged Purchase Costs" value={currency.format(purchaseCosts)} icon={Receipt}
-                dataPoints={statSeries(purchases.data ?? [], purchaseDay, purchaseAmount)} chartLabel="Logged purchase costs by day" />
+                dataPoints={statSeries(purchases.data ?? [], purchaseDay, purchaseAmount)} chartLabel="Logged purchase costs by day" formatValue={currency.format} />
               <StatCard title={estimate < 0 && hasRevenue ? 'Estimated Loss' : 'Estimated Profit'} value={hasRevenue ? currency.format(estimate) : '—'} icon={Calculator}
-                dataPoints={hasManual || !hasRevenue ? [] : dailyAmounts([...dailySales, ...dailyExpenses])} chartLabel="Estimated profit or loss by day" />
+                dataPoints={hasManual || !hasRevenue ? [] : dailyAmounts([...dailySales, ...dailyExpenses])} chartLabel="Estimated profit or loss by day" formatValue={currency.format} />
               <StatCard title="Average Menu Margin" value={averageMargin == null ? '—' : averageMargin.toFixed(1) + '%'} icon={Percent}
-                dataPoints={margins} chartLabel="Margins by dish" />
+                dataPoints={margins} chartLabel="Margins by dish" formatValue={(value) => percent.format(value / 100)} />
             </div>
             <div className="card-premium max-w-xl p-5">
               <Label htmlFor="profit-sales">Override all-time sales revenue (₹)</Label>

@@ -2,6 +2,7 @@ import { ClipboardList, ArrowUpRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import type { Order } from '@/types';
 import { isServedOrder } from '@/lib/utils';
+import { ChartDetails } from './ChartDetails';
 
 export function OrderBreakdown({ orders }: { orders: Order[] }) {
   const served = orders.filter(isServedOrder).length;
@@ -22,9 +23,31 @@ export function OrderBreakdown({ orders }: { orders: Order[] }) {
             <p className="text-xs text-muted-foreground">All-time order counts by status</p>
           </div>
         </div>
-        <Link to="/orders" className="inline-flex min-h-9 items-center gap-1 text-sm font-semibold text-primary hover:underline">
-          View Orders <ArrowUpRight className="size-3.5" aria-hidden="true" />
-        </Link>
+        <div className="flex items-center gap-3">
+          <Link to="/orders" className="inline-flex min-h-9 items-center gap-1 text-sm font-semibold text-primary hover:underline">
+            View Orders <ArrowUpRight className="size-3.5" aria-hidden="true" />
+          </Link>
+          <ChartDetails title="Order Breakdown" description="All-time counts and share of orders by status">
+            {orders.length ? (
+              <ul className="space-y-4">
+                {statuses.map(({ label, color, count }) => {
+                  const share = count / orders.length * 100;
+                  return (
+                    <li key={label} className="space-y-1.5">
+                      <div className="flex flex-wrap justify-between gap-x-3 text-sm">
+                        <span className="font-medium">{label}</span>
+                        <span className="tabular-nums">{count.toLocaleString('en-IN')} orders · {share.toLocaleString('en-IN', { maximumFractionDigits: 1 })}%</span>
+                      </div>
+                      <div aria-hidden="true" className="h-2 overflow-hidden rounded-full bg-secondary">
+                        <div className={`h-full ${color}`} style={{ width: `${share}%` }} />
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : <p className="text-sm text-muted-foreground">No orders recorded yet.</p>}
+          </ChartDetails>
+        </div>
       </div>
 
       {orders.length === 0 ? (
