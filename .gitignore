@@ -21,6 +21,8 @@ dist-ssr
 .wwebjs_auth
 .wwebjs_cache
 setup_whatsapp_db.cjs
+scratch*
+.playwright-mcp
 .vscode/*
 !.vscode/extensions.json
 !.vscode/settings.json
