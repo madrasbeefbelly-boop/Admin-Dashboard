@@ -106,15 +106,11 @@ export default function PurchasesPage() {
     setItemsList((prev) =>
       prev.map((row) => {
         if (row.id !== id) return row;
-        const updated = { ...row, [field]: value };
-        // Auto-fill cost from inventory default if empty
-        if (field === 'item_id' && value && !row.cost) {
-          const invItem = inventoryItems.find((it) => it.id === value);
-          if (invItem?.cost_per_unit != null) {
-            updated.cost = String(invItem.cost_per_unit);
-          }
+        if (field === 'item_id' && value !== row.item_id) {
+          const item = inventoryItems.find((entry) => entry.id === value);
+          return { ...row, item_id: value, quantity: '', cost: String(item?.cost_per_unit ?? '') };
         }
-        return updated;
+        return { ...row, [field]: value };
       })
     );
   };
@@ -134,6 +130,7 @@ export default function PurchasesPage() {
   const currentMonth = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit',
   }).format(new Date()).slice(0, 7);
+  const purchaseRecords = [...new Map(purchases.map((item) => [item.id, item])).values()];
   const thisMonth = purchases.filter((item) => purchaseDay(item).startsWith(currentMonth));
   const totalSpent = purchases.reduce((total, item) => total + purchaseAmount(item), 0);
   const thisMonthSpent = thisMonth.reduce((total, item) => total + purchaseAmount(item), 0);
@@ -209,13 +206,13 @@ export default function PurchasesPage() {
         toast.error(`Please select an item for Item #${i + 1}`);
         return;
       }
-      const q = parseFloat(it.quantity);
-      if (!q || isNaN(q) || q <= 0) {
+      const q = Number(it.quantity);
+      if (!Number.isFinite(q) || q <= 0 || Number(q.toFixed(2)) !== q) {
         toast.error(`Please enter a valid quantity for Item #${i + 1}`);
         return;
       }
-      const c = parseFloat(it.cost);
-      if (isNaN(c) || c < 0) {
+      const c = Number(it.cost);
+      if (!it.cost || !Number.isFinite(c) || c < 0 || Number(c.toFixed(2)) !== c) {
         toast.error(`Please enter a valid cost per unit for Item #${i + 1}`);
         return;
       }
@@ -278,7 +275,7 @@ export default function PurchasesPage() {
     <DashboardLayout title="Purchases" subtitle="Track grocery and supply purchases">
       {/* Dialog for Log Purchase */}
       <Dialog open={isLogPurchaseDialogOpen} onOpenChange={setIsLogPurchaseDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col p-0 overflow-hidden">
+        <DialogContent className="flex max-h-[90dvh] max-w-2xl flex-col overflow-hidden p-0 max-md:overflow-hidden max-md:p-0">
           <DialogHeader className="p-5 sm:p-6 pb-3 border-b border-border">
             <DialogTitle>Log New Purchase</DialogTitle>
             <DialogDescription>
@@ -286,12 +283,12 @@ export default function PurchasesPage() {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-6">
+          <div className="min-h-0 flex-1 space-y-6 overflow-y-auto p-4 sm:p-6">
             {/* Supplier & Purchase Date Row */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-sm font-medium">Supplier *</label>
+                  <label htmlFor="purchase-supplier" className="text-sm font-medium">Supplier *</label>
                   <Button 
                     size="sm" 
                     variant="ghost"
@@ -303,7 +300,7 @@ export default function PurchasesPage() {
                   </Button>
                 </div>
                 <Select value={supplierId} onValueChange={setSupplierId}>
-                  <SelectTrigger>
+                  <SelectTrigger id="purchase-supplier">
                     <SelectValue placeholder="Select a supplier" />
                   </SelectTrigger>
                   <SelectContent>
@@ -317,9 +314,10 @@ export default function PurchasesPage() {
               </div>
 
               <div>
-                <label className="text-sm font-medium block mb-1.5">Purchase Date *</label>
+                <label htmlFor="purchase-date" className="text-sm font-medium block mb-1.5">Purchase Date *</label>
                 <Input
                   type="date"
+                  id="purchase-date"
                   value={purchaseDate}
                   onChange={(e) => setPurchaseDate(e.target.value)}
                 />
@@ -328,12 +326,11 @@ export default function PurchasesPage() {
 
             {/* Items Section Header */}
             <div className="space-y-3 pt-1">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <h4 className="text-sm font-semibold text-foreground flex items-center gap-2">
                     Purchased Items ({itemsList.length})
                   </h4>
-                  <p className="text-xs text-muted-foreground">Add all items included in this bill/invoice</p>
                 </div>
                 <Button
                   type="button"
@@ -342,7 +339,7 @@ export default function PurchasesPage() {
                   onClick={addItemRow}
                   className="h-8 text-xs border-dashed border-gold/60 text-gold hover:bg-gold/10"
                 >
-                  <Plus className="w-3.5 h-3.5 mr-1" /> Add Another Item
+                  <Plus className="w-3.5 h-3.5 mr-1" /> Add Item
                 </Button>
               </div>
 
@@ -369,6 +366,7 @@ export default function PurchasesPage() {
                             onClick={() => removeItemRow(row.id)}
                             className="h-7 px-2 text-destructive hover:bg-destructive/10 text-xs"
                             title="Remove this item"
+                            aria-label={`Remove item ${index + 1}`}
                           >
                             <Trash2 className="w-3.5 h-3.5 mr-1" /> Remove
                           </Button>
@@ -377,7 +375,7 @@ export default function PurchasesPage() {
 
                       {/* Item selection */}
                       <div>
-                        <label className="text-xs font-medium text-muted-foreground block mb-1">
+                        <label htmlFor={`purchase-item-${row.id}`} className="text-xs font-medium text-muted-foreground block mb-1">
                           Item Name *
                         </label>
                         <Select
@@ -385,7 +383,7 @@ export default function PurchasesPage() {
                           onValueChange={(val) => updateItemRow(row.id, 'item_id', val)}
                           disabled={inventory.isPending || inventory.isError || inventoryItems.length === 0}
                         >
-                          <SelectTrigger className="h-9">
+                          <SelectTrigger id={`purchase-item-${row.id}`} className="h-9">
                             <SelectValue placeholder={inventory.isPending ? 'Loading inventory…' : 'Select an inventory item'} />
                           </SelectTrigger>
                           <SelectContent>
@@ -396,7 +394,11 @@ export default function PurchasesPage() {
                             ))}
                           </SelectContent>
                         </Select>
-                        {!inventory.isPending && inventoryItems.length === 0 && (
+                        {inventory.isError ? (
+                          <button type="button" className="mt-1 text-xs font-medium text-primary underline" onClick={() => void inventory.refetch()}>
+                            Couldn’t load inventory. Retry
+                          </button>
+                        ) : !inventory.isPending && inventoryItems.length === 0 && (
                           <p className="mt-1 text-xs text-muted-foreground">
                             Add an item in <Link to="/inventory" className="text-gold underline">Inventory</Link> first.
                           </p>
@@ -406,18 +408,19 @@ export default function PurchasesPage() {
                       {/* Quantity, Cost per unit & Subtotal */}
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
                         <div>
-                          <label className="text-xs font-medium text-muted-foreground block mb-1">
+                          <label htmlFor={`purchase-quantity-${row.id}`} className="text-xs font-medium text-muted-foreground block mb-1">
                             Quantity *
                           </label>
                           <div className="flex gap-1.5">
                             <Input
                               type="number"
-                              step="any"
-                              min="0"
+                              id={`purchase-quantity-${row.id}`}
+                              step="0.01"
+                              min="0.01"
                               placeholder="e.g. 50"
                               value={row.quantity}
                               onChange={(e) => updateItemRow(row.id, 'quantity', e.target.value)}
-                              className="h-9 text-sm"
+                              className="h-9 min-w-0 text-sm"
                             />
                             <span className="h-9 min-w-16 px-2 flex items-center justify-center rounded-md border border-input bg-muted/70 text-xs text-muted-foreground font-medium shrink-0">
                               {selectedInv?.unit || 'Unit'}
@@ -426,12 +429,13 @@ export default function PurchasesPage() {
                         </div>
 
                         <div>
-                          <label className="text-xs font-medium text-muted-foreground block mb-1">
+                          <label htmlFor={`purchase-cost-${row.id}`} className="text-xs font-medium text-muted-foreground block mb-1">
                             Cost per Unit (₹) *
                           </label>
                           <Input
                             type="number"
-                            step="any"
+                            id={`purchase-cost-${row.id}`}
+                            step="0.01"
                             min="0"
                             placeholder="e.g. 120"
                             value={row.cost}
@@ -464,7 +468,7 @@ export default function PurchasesPage() {
                 onClick={addItemRow}
                 className="w-full border-dashed border-2 border-border hover:border-gold hover:text-gold hover:bg-gold/5 py-4 text-xs font-semibold"
               >
-                <Plus className="w-4 h-4 mr-1.5" /> + Add Another Item
+                <Plus className="w-4 h-4 mr-1.5" /> Add Another Item
               </Button>
             </div>
 
@@ -484,7 +488,7 @@ export default function PurchasesPage() {
             </div>
           </div>
 
-          <DialogFooter className="p-4 sm:p-6 pt-3 border-t border-border bg-slate-50/50 flex justify-between items-center sm:justify-end gap-2 shrink-0">
+          <DialogFooter className="flex-row items-center justify-end gap-2 border-t border-border bg-slate-50/50 p-4 sm:p-6">
             <Button variant="outline" onClick={() => setIsLogPurchaseDialogOpen(false)}>
               Cancel
             </Button>
@@ -584,8 +588,8 @@ export default function PurchasesPage() {
       </Dialog>
 
       <div className="summary-counts mb-6 grid grid-cols-3 gap-2 md:gap-4">
-        <StatCard title="Total Purchases" value={purchases.length} icon={ShoppingCart}
-          dataPoints={statSeries(purchases, purchaseDay)} chartLabel="Purchases by day" />
+        <StatCard title="Total Purchases" value={purchaseRecords.length} icon={ShoppingCart}
+          dataPoints={statSeries(purchaseRecords, purchaseDay)} chartLabel="Purchases by day" />
         <StatCard title="This Month" value={`₹${(thisMonthSpent / 1000).toFixed(0)}K`} icon={TrendingDown}
           accent="text-warning" dataPoints={statSeries(thisMonth, purchaseDay, purchaseAmount)} chartLabel="This month's spending by day" />
         <StatCard title="Total Spent" value={`₹${(totalSpent / 1000).toFixed(0)}K`} icon={Calendar}
@@ -630,7 +634,7 @@ export default function PurchasesPage() {
             </TableHeader>
             <TableBody role="rowgroup">
               {filteredPurchases.map((purchase) => (
-                <TableRow role="row" key={`${purchase.id}-${purchase.ingredient_name}`} className="border-border hover:bg-secondary/50">
+                <TableRow role="row" key={purchase.purchase_item_id ?? purchase.id} className="border-border hover:bg-secondary/50">
                   <TableCell role="cell" mobileLabel="Supplier" className="text-sm text-muted-foreground">{purchase.supplier_name}</TableCell>
                   <TableCell role="cell" mobileLabel="Item" className="font-medium">{purchase.ingredient_name || 'N/A'}</TableCell>
                   <TableCell role="cell" mobileLabel="Date" className="text-sm">

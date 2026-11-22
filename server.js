@@ -1108,10 +1108,10 @@ app.get('/api/purchases', async (req, res) => {
       SELECT 
         p.id, p.purchase_order_number, p.supplier_name, p.purchase_date, 
         p.total_amount, p.payment_status, p.status, p.created_at,
-        pi.quantity, pi.unit, pi.unit_price, pi.ingredient_name
+        pi.id AS purchase_item_id, pi.quantity, pi.unit, pi.unit_price, pi.ingredient_name
       FROM purchases p
       LEFT JOIN purchase_items pi ON p.id = pi.purchase_id
-      ORDER BY p.purchase_date DESC
+      ORDER BY p.purchase_date DESC, p.created_at DESC, pi.id
     `);
     res.json({ success: true, data: result.rows });
   } catch (error) {
