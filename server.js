@@ -1787,7 +1787,12 @@ app.post('/api/orders', async (req, res) => {
       return res.status(400).json({ success: false, error: 'No business found' });
     }
 
-    const orderRef = `ORD-${Date.now()}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
+    await client.query('CREATE SEQUENCE IF NOT EXISTS order_ref_seq START WITH 1');
+    const { rows: [{ seq }] } = await client.query("SELECT nextval('order_ref_seq')::int AS seq");
+    const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    const randomLetters = letters[Math.floor(Math.random() * 26)] + letters[Math.floor(Math.random() * 26)];
+    const countStr = String(seq).padStart(3, '0');
+    const orderRef = `ORD-${Date.now()}-${randomLetters}${countStr}`;
     const total = items.reduce((sum, item) => sum + Number(item.unit_price) * Number(item.quantity), 0);
     const { rows: [order] } = await client.query(`
       INSERT INTO orders (
