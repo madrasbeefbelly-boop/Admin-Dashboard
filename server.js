@@ -27,6 +27,7 @@ import {
   queueOrderCancelledAlert,
   queueOrderDeletedAlert,
 } from './whatsappDelivery.js';
+import { syncOrderToGoogleSheet } from './googleSheetSync.js';
 
 // Global error handlers to prevent crashes from Windows file locks (e.g. Chrome CrashpadMetrics)
 process.on('uncaughtException', (err) => {
@@ -1815,6 +1816,14 @@ app.post('/api/orders', async (req, res) => {
 
     await client.query('COMMIT');
 
+    void syncOrderToGoogleSheet(pool, {
+      action: 'create',
+      order_ref: order.order_ref,
+      items,
+      total_amount: order.total_amount,
+      status: 'New'
+    });
+
     res.status(201).json({ success: true, data: { ...order, items } });
   } catch (error) {
     await client.query('ROLLBACK');
@@ -1975,6 +1984,14 @@ const updateOrderStatusHandler = async (req, res) => {
 
     await client.query('COMMIT');
 
+    void syncOrderToGoogleSheet(pool, {
+      action: 'update_status',
+      order_ref: fullOrder.order_ref,
+      items,
+      total_amount: fullOrder.total_amount,
+      status
+    });
+
     res.json({ success: true, data: { ...updated, deduction_count: deductedRequirements.length } });
   } catch (error) {
     await client.query('ROLLBACK');
@@ -2004,6 +2021,13 @@ app.delete('/api/orders/:id', async (req, res) => {
     await client.query('DELETE FROM orders WHERE id = $1', [req.params.id]);
     await queueOrderDeletedAlert(client, order, items);
     await client.query('COMMIT');
+
+    void syncOrderToGoogleSheet(pool, {
+      action: 'delete',
+      order_ref: order.order_ref,
+      status: 'Deleted'
+    });
+
     res.json({ success: true, message: 'Order deleted' });
   } catch (error) {
     await client.query('ROLLBACK');
@@ -2117,6 +2141,7 @@ app.get('/api/whatsapp/status', ...whatsappSession, async (req, res) => {
       lastError: settings.online ? settings.last_error : null,
       targetPhone: settings.target_phone || '',
       targetGroupId: settings.target_group_id || '',
+      googleSheetWebhook: settings.google_sheet_webhook || process.env.GOOGLE_SHEET_WEBHOOK_URL || '',
       alertLowStock: settings.alert_low_stock ?? true,
       alertNewOrders: settings.alert_new_orders ?? true,
       lastTest: test ? { id: test.id, status: test.sent_at ? 'sent' : test.failed_at ? 'failed' : 'queued' } : null,
@@ -2138,9 +2163,10 @@ app.post('/api/whatsapp/start', ...whatsappSession, async (req, res) => {
 });
 
 app.post('/api/whatsapp/config', ...whatsappSession, async (req, res) => {
-  const { targetPhone, targetGroupId, alertLowStock, alertNewOrders } = req.body ?? {};
+  const { targetPhone, targetGroupId, alertLowStock, alertNewOrders, googleSheetWebhook } = req.body ?? {};
   const phone = typeof targetPhone === 'string' ? targetPhone.trim() : '';
   const group = typeof targetGroupId === 'string' ? targetGroupId.trim() : '';
+  const sheetWebhook = typeof googleSheetWebhook === 'string' ? googleSheetWebhook.trim() : '';
   if (phone && !formatChatId(phone)) {
     return res.status(400).json({ success: false, error: 'Enter a valid WhatsApp phone number.' });
   }
@@ -2150,8 +2176,8 @@ app.post('/api/whatsapp/config', ...whatsappSession, async (req, res) => {
   const formattedGroup = group ? (formatChatId(group, true) || group) : '';
   await pool.query(`
     UPDATE whatsapp_settings SET target_phone = $1, target_group_id = $2,
-      alert_low_stock = $3, alert_new_orders = $4, updated_at = now() WHERE id = 1
-  `, [phone, formattedGroup, alertLowStock !== false, alertNewOrders !== false]);
+      alert_low_stock = $3, alert_new_orders = $4, google_sheet_webhook = $5, updated_at = now() WHERE id = 1
+  `, [phone, formattedGroup, alertLowStock !== false, alertNewOrders !== false, sheetWebhook]);
   res.json({ success: true });
 });
 

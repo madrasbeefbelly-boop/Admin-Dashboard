@@ -194,6 +194,7 @@ export const whatsappAPI = {
     targetGroupId?: string;
     alertLowStock: boolean;
     alertNewOrders: boolean;
+    googleSheetWebhook?: string;
   }) => api.post('/whatsapp/config', data),
 
   // Disconnect / Logout WhatsApp

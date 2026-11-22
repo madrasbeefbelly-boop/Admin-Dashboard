@@ -410,6 +410,7 @@ export const useSaveWhatsAppConfig = () => {
       targetGroupId?: string;
       alertLowStock: boolean;
       alertNewOrders: boolean;
+      googleSheetWebhook?: string;
     }) => whatsappAPI.saveConfig(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['whatsappStatus'] });

@@ -122,6 +122,7 @@ const responses = new Map<string, unknown>([
     info: { pushname: 'Madras Beef Belly Official', wid: '919876543210', phone: '919876543210' },
     targetPhone: '',
     targetGroupId: '120363432438097680@g.us',
+    googleSheetWebhook: '',
     alertLowStock: true,
     alertNewOrders: true,
   }],

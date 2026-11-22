@@ -58,17 +58,25 @@ export default function SettingsPage() {
   const [waConfig, setWaConfig] = useState({
     targetPhone: '',
     targetGroupId: '',
+    googleSheetWebhook: '',
     alertLowStock: true,
     alertNewOrders: true,
   });
 
   const savedPhone = waStatus?.targetPhone ?? '';
   const savedGroup = waStatus?.targetGroupId ?? '';
+  const savedSheet = waStatus?.googleSheetWebhook ?? '';
   const savedLowStock = waStatus?.alertLowStock ?? true;
   const savedOrders = waStatus?.alertNewOrders ?? true;
   useEffect(() => {
-    setWaConfig({ targetPhone: savedPhone, targetGroupId: savedGroup, alertLowStock: savedLowStock, alertNewOrders: savedOrders });
-  }, [savedPhone, savedGroup, savedLowStock, savedOrders]);
+    setWaConfig({
+      targetPhone: savedPhone,
+      targetGroupId: savedGroup,
+      googleSheetWebhook: savedSheet,
+      alertLowStock: savedLowStock,
+      alertNewOrders: savedOrders,
+    });
+  }, [savedPhone, savedGroup, savedSheet, savedLowStock, savedOrders]);
 
   const handleSaveWA = () => {
     if (!waConfig.targetGroupId.trim()) {
@@ -79,6 +87,7 @@ export default function SettingsPage() {
       {
         targetPhone: '',
         targetGroupId: waConfig.targetGroupId.trim(),
+        googleSheetWebhook: waConfig.googleSheetWebhook.trim(),
         alertLowStock: waConfig.alertLowStock,
         alertNewOrders: waConfig.alertNewOrders,
       },
@@ -477,6 +486,22 @@ export default function SettingsPage() {
                 />
                 <span className="text-[11px] text-slate-400 mt-1 block">
                   All order details and kitchen alerts are sent directly to this WhatsApp group.
+                </span>
+              </div>
+
+              <div>
+                <Label htmlFor="sheetWebhook" className="text-xs font-semibold text-slate-700">
+                  Google Sheets Orders Log Webhook URL (Optional)
+                </Label>
+                <Input
+                  id="sheetWebhook"
+                  placeholder="e.g. https://script.google.com/macros/s/.../exec"
+                  value={waConfig.googleSheetWebhook}
+                  onChange={(e) => setWaConfig({ ...waConfig, googleSheetWebhook: e.target.value })}
+                  className="mt-1.5 text-xs font-mono"
+                />
+                <span className="text-[11px] text-slate-400 mt-1 block">
+                  Optional: Automatically syncs new orders and status updates to your "Orders Log" Google Sheet.
                 </span>
               </div>
 
