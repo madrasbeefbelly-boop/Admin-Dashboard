@@ -1788,8 +1788,14 @@ app.post('/api/orders', async (req, res) => {
       return res.status(400).json({ success: false, error: 'No business found' });
     }
 
-    await client.query('CREATE SEQUENCE IF NOT EXISTS order_ref_seq START WITH 1');
-    const { rows: [{ seq }] } = await client.query("SELECT nextval('order_ref_seq')::int AS seq");
+    let seq = 1;
+    try {
+      const { rows } = await client.query("SELECT nextval('order_ref_seq')::int AS seq");
+      if (rows[0]?.seq) seq = rows[0].seq;
+    } catch {
+      const { rows } = await client.query('SELECT count(*)::int AS count FROM orders');
+      seq = (rows[0]?.count || 0) + 1;
+    }
     const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
     const randomLetters = letters[Math.floor(Math.random() * 26)] + letters[Math.floor(Math.random() * 26)];
     const countStr = String(seq).padStart(3, '0');
