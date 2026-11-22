@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { PhotoPicker } from '@/components/ui/photo-picker';
+import { PhotoPreview } from '@/components/ui/photo-preview';
 import { catalogPhotoSource } from '@/lib/catalog-photo';
 import { useAuth } from '@/contexts/AuthContext';
 import { Progress } from '@/components/ui/progress';
@@ -568,7 +569,9 @@ export default function InventoryPage() {
                     <TableCell role="cell" className="ingredient-name font-semibold text-slate-900">
                       <div className="flex min-w-0 items-center gap-2.5">
                         {item.image_url && (
-                          <img src={catalogPhotoSource(item.image_url)} alt="" loading="lazy" className="size-10 shrink-0 rounded-md object-cover" />
+                          <PhotoPreview name={item.name} src={catalogPhotoSource(item.image_url)} className="size-11 shrink-0 rounded-md">
+                            <img src={catalogPhotoSource(item.image_url)} alt="" loading="lazy" className="size-full object-cover" />
+                          </PhotoPreview>
                         )}
                         <span className="min-w-0 break-words">{item.name}</span>
                       </div>

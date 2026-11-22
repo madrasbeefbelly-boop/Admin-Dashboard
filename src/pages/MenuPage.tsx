@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { PhotoPicker } from '@/components/ui/photo-picker';
+import { PhotoPreview } from '@/components/ui/photo-preview';
 import { catalogPhotoSource } from '@/lib/catalog-photo';
 import { useAuth } from '@/contexts/AuthContext';
 import {
@@ -124,16 +125,18 @@ function DishCardImage({
   }
 
   return (
-    <img
-      src={catalogPhotoSource(src)}
-      alt={name}
-      loading="lazy"
-      className={cn(
-        'h-full w-full object-cover transition-transform duration-300 group-hover:scale-105',
-        className
-      )}
-      onError={() => setFailedSource(src)}
-    />
+    <PhotoPreview name={name} src={catalogPhotoSource(src)} className="size-full" showExpandIcon>
+      <img
+        src={catalogPhotoSource(src)}
+        alt=""
+        loading="lazy"
+        className={cn(
+          'h-full w-full object-cover transition-transform duration-300 group-hover:scale-105',
+          className
+        )}
+        onError={() => setFailedSource(src)}
+      />
+    </PhotoPreview>
   );
 }
 
