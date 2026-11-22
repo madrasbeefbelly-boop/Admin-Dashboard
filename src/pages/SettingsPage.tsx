@@ -318,7 +318,7 @@ export default function SettingsPage() {
                 ) : waStatus?.status === 'connected' ? (
                   <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800">
                     <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                    Connected ({waStatus?.info?.pushname || 'Active'})
+                     ({waStatus?.info?.pushname || 'Active'})
                   </span>
                 ) : waStatus?.status === 'qr_ready' ? (
                   <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-800">

@@ -34,7 +34,65 @@ export async function enqueueWhatsApp(db, eventKey, kind, message, testTarget = 
   return rows;
 }
 
-export function queueOrderAlert(db, order, items) {
+export function queueOrderServedAlert(db, order, items = []) {
+  const lines = items.map((item) => {
+    const itemName = item.name || item.item_name || 'Item';
+    const qty = item.quantity || 1;
+    const price = Number(item.unit_price || 0);
+    return `• ${qty} × ${itemName} · ${money(Number(qty) * price)}`;
+  }).join('\n');
+  const itemsSection = lines ? `\n${lines}\n` : '';
+
+  return enqueueWhatsApp(db, `order:served:${order.id}`, 'order', `🍽️ *Madras Beef Belly — Order Served* ✅
+
+*Order:* ${order.order_ref || order.order_number || order.id}
+*Customer:* ${order.customer_name || order.client_name || 'Walk-in'}
+*Table:* ${order.table_no || 'Takeaway / Walk-in'}
+*Payment:* ${order.payment_method || 'Cash'}
+${itemsSection}
+*Total:* ${money(Number(order.total_amount || order.total_value || 0))}`);
+}
+
+export function queueOrderCancelledAlert(db, order, items = [], reason = '') {
+  const lines = items.map((item) => {
+    const itemName = item.name || item.item_name || 'Item';
+    const qty = item.quantity || 1;
+    const price = Number(item.unit_price || 0);
+    return `• ${qty} × ${itemName} · ${money(Number(qty) * price)}`;
+  }).join('\n');
+  const itemsSection = lines ? `\n${lines}\n` : '';
+  const reasonText = reason || order.cancellation_reason || 'Canceled by staff';
+
+  return enqueueWhatsApp(db, `order:cancelled:${order.id}:${Date.now()}`, 'order', `❌ *Madras Beef Belly — Order Cancelled*
+
+*Order:* ${order.order_ref || order.order_number || order.id}
+*Customer:* ${order.customer_name || order.client_name || 'Walk-in'}
+*Table:* ${order.table_no || 'Takeaway / Walk-in'}
+*Reason:* ${reasonText}
+${itemsSection}
+*Total:* ${money(Number(order.total_amount || order.total_value || 0))}`);
+}
+
+export function queueOrderDeletedAlert(db, order, items = []) {
+  const lines = items.map((item) => {
+    const itemName = item.name || item.item_name || 'Item';
+    const qty = item.quantity || 1;
+    const price = Number(item.unit_price || 0);
+    return `• ${qty} × ${itemName} · ${money(Number(qty) * price)}`;
+  }).join('\n');
+  const itemsSection = lines ? `\n${lines}\n` : '';
+
+  return enqueueWhatsApp(db, `order:deleted:${order.id}:${Date.now()}`, 'order', `🗑️ *Madras Beef Belly — Order Deleted*
+
+*Order:* ${order.order_ref || order.order_number || order.id}
+*Customer:* ${order.customer_name || order.client_name || 'Walk-in'}
+*Table:* ${order.table_no || 'Takeaway / Walk-in'}
+*Status:* Deleted from Dashboard
+${itemsSection}
+*Total:* ${money(Number(order.total_amount || order.total_value || 0))}`);
+}
+
+export function queueOrderAlert(db, order, items = []) {
   const lines = items.map((item) => {
     const itemName = item.name || item.item_name || 'Item';
     const qty = item.quantity || 1;
