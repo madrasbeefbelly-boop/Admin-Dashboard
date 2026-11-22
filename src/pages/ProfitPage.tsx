@@ -4,7 +4,6 @@ import { Calculator, Loader2, Percent, Receipt, TrendingUp } from 'lucide-react'
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { StatCard } from '@/components/dashboard/StatCard';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -58,7 +57,6 @@ function summarizeDishes(orders: Order[], days: number) {
 }
 
 export default function ProfitPage() {
-  const [manualSales, setManualSales] = useState('');
   const [period, setPeriod] = useState('30');
   const [showLosses, setShowLosses] = useState(false);
   const purchases = usePurchases();
@@ -76,9 +74,7 @@ export default function ProfitPage() {
   const shown = showLosses ? losses : dishes;
 
   const purchaseCosts = (purchases.data ?? []).reduce((total, item) => total + purchaseAmount(item), 0);
-  const hasManual = manualSales !== '' && Number.isFinite(Number(manualSales)) && Number(manualSales) >= 0;
-  const hasRevenue = hasManual || served.length > 0;
-  const revenue = hasManual ? Number(manualSales) : served.reduce((total, order) => total + Number(order.total_amount), 0);
+  const revenue = served.reduce((total, order) => total + (Number(order.total_amount) || 0), 0);
   const estimate = revenue - purchaseCosts;
   const averageMargin = averageMenuMargin(menu.data ?? []);
   const dailySales = served.map((order) => ({ day: businessDate.format(new Date(order.created_at)), amount: Number(order.total_amount) }));
@@ -207,22 +203,14 @@ export default function ProfitPage() {
               <p className="mt-1 text-sm text-muted-foreground">Sales less logged purchases. Operating expenses are excluded.</p>
             </div>
             <div className="grid grid-cols-2 gap-3 md:gap-4 xl:grid-cols-4">
-              <StatCard title="Sales Revenue" value={hasRevenue ? currency.format(revenue) : '—'} icon={TrendingUp}
-                dataPoints={hasManual ? [] : dailyAmounts(dailySales)} chartLabel="Recorded sales by day" formatValue={currency.format} />
+              <StatCard title="Sales Revenue" value={currency.format(revenue)} icon={TrendingUp}
+                dataPoints={dailyAmounts(dailySales)} chartLabel="Recorded sales by day" formatValue={currency.format} />
               <StatCard title="Logged Purchase Costs" value={currency.format(purchaseCosts)} icon={Receipt}
                 dataPoints={statSeries(purchases.data ?? [], purchaseDay, purchaseAmount)} chartLabel="Logged purchase costs by day" formatValue={currency.format} />
-              <StatCard title={estimate < 0 && hasRevenue ? 'Estimated Loss' : 'Estimated Profit'} value={hasRevenue ? currency.format(estimate) : '—'} icon={Calculator}
-                dataPoints={hasManual || !hasRevenue ? [] : dailyAmounts([...dailySales, ...dailyExpenses])} chartLabel="Estimated profit or loss by day" formatValue={currency.format} />
+              <StatCard title={estimate < 0 ? 'Estimated Loss' : 'Estimated Profit'} value={currency.format(estimate)} icon={Calculator}
+                dataPoints={dailyAmounts([...dailySales, ...dailyExpenses])} chartLabel="Estimated profit or loss by day" formatValue={currency.format} />
               <StatCard title="Average Menu Margin" value={averageMargin == null ? '—' : averageMargin.toFixed(1) + '%'} icon={Percent}
                 dataPoints={margins} chartLabel="Margins by dish" formatValue={(value) => percent.format(value / 100)} />
-            </div>
-            <div className="card-premium max-w-xl p-5">
-              <Label htmlFor="profit-sales">Override all-time sales revenue (₹)</Label>
-              <Input id="profit-sales" className="mt-2" type="number" inputMode="decimal" min="0" step="0.01"
-                value={manualSales} onChange={(event) => setManualSales(event.target.value)} aria-describedby="profit-sales-help" />
-              <p id="profit-sales-help" className="mt-2 text-sm text-muted-foreground">
-                Leave blank to use served-order totals. The dish report always uses recorded orders.
-              </p>
             </div>
           </section>
         </div>

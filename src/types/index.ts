@@ -70,6 +70,13 @@ export interface OrderItem {
   ingredient_cost?: number | null;
 }
 
+export interface IngredientUsage {
+  inventory_item_id: string;
+  ingredient_name: string;
+  quantity_deducted: number | string;
+  unit: string;
+}
+
 export interface Order {
   id: string;
   order_ref: string;
@@ -83,4 +90,5 @@ export interface Order {
   cancellation_reason?: string | null;
   created_at: string;
   items: OrderItem[];
+  ingredient_usage?: IngredientUsage[];
 }

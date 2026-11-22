@@ -9,11 +9,11 @@ import {
   CartesianGrid,
 } from 'recharts';
 import { useOrders, usePurchases } from '@/hooks/api';
-import { ChevronDown } from 'lucide-react';
 import { isServedOrder } from '@/lib/utils';
 import { FoodMap } from './FoodMap';
 import { ChartDetails } from './ChartDetails';
-import { formatStatCurrency } from '@/lib/stat-series';
+import { dashboardActivity, dashboardIngredientUsage, type DashboardPeriod } from '@/lib/dashboard-period';
+import { ActivityBarChart, ActivityTable, IngredientUsageChart } from './DashboardActivityChart';
 import { OrderBreakdown } from './OrderBreakdown';
 
 const currency = new Intl.NumberFormat('en-IN', {
@@ -22,86 +22,49 @@ const currency = new Intl.NumberFormat('en-IN', {
   maximumFractionDigits: 0,
 });
 
+const chartViews = {
+  revenue: { title: 'Revenue', description: 'Served-order income and logged purchases' },
+  profit: { title: 'Profit & Loss', description: 'Served-order income minus logged purchases. Operating expenses are excluded.' },
+  ingredients: { title: 'Ingredient Usage', description: 'Ingredient quantities deducted from stock for orders' },
+  orders: { title: 'Orders Volume', description: 'Orders placed and served, grouped by the date they were placed' },
+};
+
+const selectClassName = 'min-h-10 max-w-full rounded-lg border border-input bg-background px-2 text-xs font-semibold focus-visible:outline-2 focus-visible:outline-primary';
+
+type ChartView = keyof typeof chartViews;
+
 export function AnalyticsCharts({ summaryCards }: { summaryCards: ReactNode }) {
   const { data: orders = [] } = useOrders();
   const { data: purchases = [] } = usePurchases();
   const servedOrders = useMemo(() => orders.filter(isServedOrder), [orders]);
 
-  const [timeFilter, setTimeFilter] = useState<'Monthly' | 'Weekly'>('Monthly');
-
-  // Actual live Total Sales from orders
-  const actualSales = useMemo(() => {
-    return servedOrders.reduce((sum, o) => sum + (Number(o.total_amount) || 0), 0);
-  }, [servedOrders]);
-
-  // Actual live Costs from logged purchases
-  const actualCosts = useMemo(() => {
-    return purchases.reduce(
-      (sum, p) => sum + (Number(p.quantity) || 0) * (Number(p.unit_price) || 0),
-      0,
-    );
-  }, [purchases]);
-
-  // Real Monthly & Weekly Revenue Data (Income vs Expense)
-  const revenueChartData = useMemo(() => {
-    if (timeFilter === 'Weekly') {
-      // Past 7 Days
-      const days = [];
-      for (let i = 6; i >= 0; i--) {
-        const d = new Date();
-        d.setDate(d.getDate() - i);
-        const key = d.toISOString().split('T')[0];
-        const label = d.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric' });
-        days.push({ key, label, income: 0, expense: 0 });
-      }
-
-      for (const o of servedOrders) {
-        if (!o.created_at) continue;
-        const key = new Date(o.created_at).toISOString().split('T')[0];
-        const match = days.find((day) => day.key === key);
-        if (match) match.income += Number(o.total_amount) || 0;
-      }
-
-      for (const p of purchases) {
-        const dateStr = p.purchase_date || p.created_at;
-        if (!dateStr) continue;
-        const key = new Date(dateStr).toISOString().split('T')[0];
-        const match = days.find((day) => day.key === key);
-        if (match) match.expense += (Number(p.quantity) || 0) * (Number(p.unit_price) || 0);
-      }
-
-      return days;
-    }
-
-    // Past 6 Months (Monthly)
-    const months = [];
-    const now = new Date();
-    for (let i = 5; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      const label = d.toLocaleDateString('en-IN', { month: 'short' });
-      months.push({ key, label, income: 0, expense: 0 });
-    }
-
-    for (const o of servedOrders) {
-      if (!o.created_at) continue;
-      const d = new Date(o.created_at);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      const match = months.find((m) => m.key === key);
-      if (match) match.income += Number(o.total_amount) || 0;
-    }
-
-    for (const p of purchases) {
-      const dateStr = p.purchase_date || p.created_at;
-      if (!dateStr) continue;
-      const d = new Date(dateStr);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      const match = months.find((m) => m.key === key);
-      if (match) match.expense += (Number(p.quantity) || 0) * (Number(p.unit_price) || 0);
-    }
-
-    return months;
-  }, [servedOrders, purchases, timeFilter]);
+  const [timeFilter, setTimeFilter] = useState<DashboardPeriod>('Monthly');
+  const [view, setView] = useState<ChartView>('revenue');
+  const [ingredientUnit, setIngredientUnit] = useState('');
+  const revenueChartData = useMemo(() => dashboardActivity(orders, purchases, timeFilter), [orders, purchases, timeFilter]);
+  const usage = useMemo(() => dashboardIngredientUsage(orders, revenueChartData, timeFilter), [orders, revenueChartData, timeFilter]);
+  const usageGroup = usage.find(({ unit }) => unit === ingredientUnit) ?? usage[0];
+  const totals = revenueChartData.reduce(
+    (total, period) => ({
+      income: total.income + period.income,
+      expense: total.expense + period.expense,
+      placed: total.placed + period.placed,
+      served: total.served + period.served,
+    }),
+    { income: 0, expense: 0, placed: 0, served: 0 },
+  );
+  const net = Math.round((totals.income - totals.expense) * 100) / 100;
+  const period = timeFilter === 'Weekly' ? 'Last 7 days' : 'Last 6 months';
+  const activeChart = chartViews[view];
+  const summary = view === 'revenue' ? [
+    { label: 'Income', value: currency.format(totals.income) },
+    { label: 'Logged purchases', value: currency.format(totals.expense) },
+  ] : view === 'profit' ? [
+    { label: net < 0 ? 'Estimated loss' : 'Estimated profit', value: currency.format(Math.abs(net)) },
+  ] : [
+    { label: 'Orders placed', value: totals.placed.toLocaleString('en-IN') },
+    { label: 'Served', value: totals.served.toLocaleString('en-IN') },
+  ];
 
   // Max value and ticks for Revenue Y-Axis (1k, 5k, 10k, 20k, 30k, 40k, 50k scale)
   const revenueYAxis = useMemo(() => {
@@ -236,77 +199,69 @@ export function AnalyticsCharts({ summaryCards }: { summaryCards: ReactNode }) {
     );
   };
 
+  const renderActivity = (expanded: boolean) => {
+    const className = expanded ? 'h-56 w-full sm:h-72' : 'h-64 w-full pt-2 sm:h-72';
+    if (view === 'revenue') return renderRevenueChart(chartId + (expanded ? '-detail' : '-inline'), className);
+    if (view === 'ingredients') {
+      return (
+        <div className={expanded ? 'py-2' : 'min-h-56 pt-3 sm:min-h-64'}>
+          <IngredientUsageChart group={usageGroup} limit={expanded ? undefined : 5} />
+        </div>
+      );
+    }
+    return <ActivityBarChart data={revenueChartData} view={view} className={className} />;
+  };
+
   return (
     <div className="space-y-6 mb-8">
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         
-        {/* ── REVENUE WAVE CHART (Top on mobile, 2nd on desktop) ── */}
-        <div className="order-1 md:order-2 lg:col-span-7 card-premium p-4 sm:p-6 flex flex-col justify-between overflow-hidden">
-          <div className="px-1 sm:px-0">
-            {/* Header: Title + Filter Toggle */}
-            <div className="flex flex-wrap items-start justify-between gap-2 mb-4">
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="w-1.5 h-5 bg-[#dc2626] rounded-full inline-block" />
-                  <h3 className="font-display font-bold text-lg text-slate-900 tracking-tight">
-                    Revenue
-                  </h3>
-                </div>
-                <p className="text-xs text-slate-400 mt-1">
-                  Actual order income and logged kitchen expenses
-                </p>
-              </div>
-
-              {/* Monthly / Weekly Dropdown */}
+        <section aria-labelledby="dashboard-activity-title" className="order-1 md:order-2 lg:col-span-7 card-premium p-4 sm:p-6 flex min-w-0 flex-col justify-between overflow-hidden">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setTimeFilter((prev) => (prev === 'Monthly' ? 'Weekly' : 'Monthly'))}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-600 bg-white border border-slate-200 rounded-lg shadow-xs hover:bg-slate-50 transition-colors"
-                >
-                  {timeFilter}
-                  <ChevronDown className="size-3.5 text-slate-400" />
-                </button>
-                <ChartDetails title="Revenue" description={timeFilter === 'Weekly' ? 'Income and expense for the last 7 days' : 'Income and expense for the last 6 months'}>
-                  {renderRevenueChart(chartId + '-detail', 'h-56 w-full sm:h-72')}
-                  <table className="w-full table-fixed text-sm">
-                    <thead className="border-b border-input text-xs text-muted-foreground">
-                      <tr><th scope="col" className="p-2 text-left">Period</th><th scope="col" className="p-2 text-right">Income</th><th scope="col" className="p-2 text-right">Expense</th></tr>
-                    </thead>
-                    <tbody>
-                      {revenueChartData.map(({ key, label, income, expense }) => (
-                        <tr key={key} className="border-b border-input last:border-0">
-                          <th scope="row" className="p-2 text-left font-medium">{label}</th>
-                          <td className="p-2 text-right tabular-nums wrap-anywhere">{formatStatCurrency(income)}</td>
-                          <td className="p-2 text-right tabular-nums wrap-anywhere">{formatStatCurrency(expense)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </ChartDetails>
+                <span className="h-5 w-1.5 shrink-0 rounded-full bg-primary" aria-hidden="true" />
+                <h3 id="dashboard-activity-title" className="font-display text-lg font-bold tracking-tight">{activeChart.title}</h3>
               </div>
+              <p className="mt-1 text-xs text-muted-foreground">{activeChart.description}</p>
             </div>
-
-            {/* Income & Expense Banner (Actual values only) */}
-            <div className="flex items-center justify-center gap-12 sm:gap-16 py-2 mb-2">
-              <div className="text-center">
-                <span className="text-xs text-slate-400 font-medium block">Income</span>
-                <span className="font-display text-xl sm:text-2xl font-bold text-slate-900 tabular-nums">
-                  {currency.format(actualSales)}
-                </span>
-              </div>
-              <div className="text-center">
-                <span className="text-xs text-slate-400 font-medium block">Expense</span>
-                <span className="font-display text-xl sm:text-2xl font-bold text-slate-900 tabular-nums">
-                  {currency.format(actualCosts)}
-                </span>
-              </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <select aria-label="Chart view" value={view} onChange={(event) => setView(event.target.value as ChartView)} className={selectClassName}>
+                {Object.entries(chartViews).map(([key, { title }]) => <option key={key} value={key}>{title}</option>)}
+              </select>
+              <select aria-label="Chart period" value={timeFilter} onChange={(event) => setTimeFilter(event.target.value as DashboardPeriod)} className={selectClassName}>
+                <option value="Monthly">Monthly</option>
+                <option value="Weekly">Weekly</option>
+              </select>
+              <ChartDetails title={activeChart.title} description={`${period} · ${activeChart.description}`}>
+                {renderActivity(true)}
+                {view !== 'ingredients' && <ActivityTable data={revenueChartData} view={view} />}
+              </ChartDetails>
             </div>
           </div>
 
-          {/* Layered Multi-Wave Area Chart - Edge-to-edge wide graph */}
-          {renderRevenueChart(chartId + '-inline', 'h-64 sm:h-72 w-full pt-2')}
-        </div>
+          {view === 'ingredients' ? (
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
+              <p className="text-xs text-muted-foreground">{period}</p>
+              {usage.length > 1 && (
+                <select aria-label="Ingredient unit" className={selectClassName}
+                  value={usageGroup?.unit} onChange={(event) => setIngredientUnit(event.target.value)}>
+                  {usage.map(({ unit }) => <option key={unit} value={unit}>{unit}</option>)}
+                </select>
+              )}
+            </div>
+          ) : (
+            <dl className="my-4 flex flex-wrap justify-center gap-x-8 gap-y-2 text-center">
+              {summary.map(({ label, value }) => (
+                <div key={label}>
+                  <dt className="text-xs font-medium text-muted-foreground">{label}</dt>
+                  <dd className="font-display text-xl font-bold tabular-nums sm:text-2xl">{value}</dd>
+                </div>
+              ))}
+            </dl>
+          )}
+          {renderActivity(false)}
+        </section>
 
         {/* ── 4 SUMMARY BOXES (2nd on mobile, Top on desktop) ── */}
         <div className="order-2 md:order-1 md:col-span-full lg:col-span-full">

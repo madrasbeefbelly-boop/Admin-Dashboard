@@ -79,6 +79,13 @@ const orders: Order[] = orderDates.map((day, index) => {
     id: `sample-order-${index}`, order_ref: `DEMO-${String(orderDates.length - index).padStart(3, '0')}`,
     customer_name: `Sample Customer ${index % 24 + 1}`, table_no: String(index % 8 + 1), payment_method: index % 3 ? 'UPI' : 'Cash',
     status, inventory_deducted: status === 'Served', items, total_amount: items.reduce((total, item) => total + item.line_total, 0),
+    inventory_deducted_at: status === 'Served' ? day.toISOString() : null,
+    ingredient_usage: status === 'Served' ? selection.flatMap((dish, line) => (dish.ingredients ?? []).map((ingredient) => ({
+      inventory_item_id: ingredient.inventory_item_id,
+      ingredient_name: ingredient.ingredient_name,
+      quantity_deducted: ingredient.quantity_required * items[line].quantity,
+      unit: ingredient.unit,
+    }))) : [],
     created_at: day.toISOString(), ...(status === 'Canceled' && { cancellation_reason: 'Sample cancellation' }),
   };
 });

@@ -1720,12 +1720,17 @@ app.get('/api/orders', async (req, res) => {
         itemsByOrder[item.order_id].push(item);
       }
       const costRows = await pool.query(`
-        SELECT order_item_id, quantity_deducted, unit, cost_at_deduction, cost_unit
+        SELECT order_id, order_item_id, inventory_item_id, ingredient_name,
+               quantity_deducted, unit, cost_at_deduction, cost_unit
         FROM order_ingredient_consumptions
         WHERE order_id = ANY($1::uuid[])
       `, [ids]);
       const costs = new Map();
+      const usageByOrder = new Map();
       for (const row of costRows.rows) {
+        const { order_id, inventory_item_id, ingredient_name, quantity_deducted, unit } = row;
+        if (!usageByOrder.has(order_id)) usageByOrder.set(order_id, []);
+        usageByOrder.get(order_id).push({ inventory_item_id, ingredient_name, quantity_deducted, unit });
         if (costs.has(row.order_item_id) && costs.get(row.order_item_id) === null) continue;
         try {
           if (row.cost_at_deduction == null || !row.cost_unit) {
@@ -1743,6 +1748,7 @@ app.get('/api/orders', async (req, res) => {
       }
       for (const order of orders) {
         order.items = itemsByOrder[order.id] ?? [];
+        order.ingredient_usage = usageByOrder.get(order.id) ?? [];
       }
     }
 
@@ -1902,7 +1908,7 @@ const updateOrderStatusHandler = async (req, res) => {
     }
 
     const shouldDeduct = deductionStatuses.includes(status) && !order.inventory_deducted;
-    let deductionCount = 0;
+    let deductedRequirements = [];
     if (shouldDeduct) {
       const { requirements, shortages } = await getOrderIngredientRequirements(client, order, true);
       if (shortages.length > 0) {
@@ -1940,7 +1946,7 @@ const updateOrderStatusHandler = async (req, res) => {
           `, [orderId, line.order_item_id, line.menu_item_id, item.id, item.name, line.quantity, item.unit, item.cost_per_unit]);
         }
       }
-      deductionCount = requirements.length;
+      deductedRequirements = requirements;
     }
 
     const { rows: [updated] } = await client.query(`
@@ -1953,13 +1959,13 @@ const updateOrderStatusHandler = async (req, res) => {
     await client.query('COMMIT');
 
     // Trigger low-stock WhatsApp alert if ingredients dropped below minimum
-    if (shouldDeduct && requirements && requirements.length > 0) {
+    if (deductedRequirements.length > 0) {
       setTimeout(async () => {
         try {
-          for (const req of requirements) {
+          for (const requirement of deductedRequirements) {
             const itemRes = await pool.query(
               'SELECT name, current_stock, minimum_stock, unit, category FROM inventory_items WHERE id = $1',
-              [req.item.id]
+              [requirement.item.id]
             );
             const item = itemRes.rows[0];
             if (item && Number(item.current_stock) <= Number(item.minimum_stock)) {
@@ -1974,7 +1980,7 @@ const updateOrderStatusHandler = async (req, res) => {
       }, 100);
     }
 
-    res.json({ success: true, data: { ...updated, deduction_count: deductionCount } });
+    res.json({ success: true, data: { ...updated, deduction_count: deductedRequirements.length } });
   } catch (error) {
     await client.query('ROLLBACK');
     console.error('Error updating order status:', error);
