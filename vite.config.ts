@@ -19,7 +19,7 @@ export default defineConfig(async () => ({
   server: {
     host: "localhost",
     port: 8080,
-    watch: { ignored: ["**/.postgres.local/**"] },
+    watch: { ignored: ["**/.postgres.local/**", "**/.wwebjs_auth/**", "**/.wwebjs_cache/**"] },
   },
   plugins: [await loadReactPlugin()],
   esbuild: { jsx: "automatic" },
