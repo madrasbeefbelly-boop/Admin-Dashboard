@@ -56,11 +56,37 @@ function pointsToPath(points: number[] = [], width = 200, height = 40): { path: 
   return { path, fillPath };
 }
 
-export function StatCard({ title, value, icon: Icon, dataPoints = [], chartLabel, accent = 'text-primary' }: StatCardProps) {
+function StatCardChart({ dataPoints, label, accent }: { dataPoints: number[]; label: string; accent: string }) {
   const { path, fillPath } = pointsToPath(dataPoints);
   const gradientId = useId();
   const hasData = dataPoints.length > 0;
 
+  return (
+    <svg
+      className={cn('stat-card-chart', accent)}
+      viewBox="0 0 200 40"
+      preserveAspectRatio="none"
+      role="img"
+      aria-label={hasData ? label : 'No chart data yet'}
+    >
+      {hasData && (
+        <>
+          <defs>
+            <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="100%">
+              <stop stopColor="currentColor" stopOpacity=".16" />
+              <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
+            </linearGradient>
+          </defs>
+          <path d={fillPath} fill={`url(#${gradientId})`} />
+        </>
+      )}
+      <path d={path} fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"
+        strokeDasharray={hasData ? undefined : '2 3'} vectorEffect="non-scaling-stroke" />
+    </svg>
+  );
+}
+
+export function StatCard({ title, value, icon: Icon, dataPoints, chartLabel, accent = 'text-primary' }: StatCardProps) {
   return (
     <div className="stat-card">
       <p className="stat-card-title">{title}</p>
@@ -68,27 +94,7 @@ export function StatCard({ title, value, icon: Icon, dataPoints = [], chartLabel
       <p className="stat-card-value font-display tabular-nums">
         {typeof value === 'number' ? value.toLocaleString() : value}
       </p>
-      <svg
-        className={cn('stat-card-chart', accent)}
-        viewBox="0 0 200 40"
-        preserveAspectRatio="none"
-        role="img"
-        aria-label={hasData ? chartLabel ?? `${title} trend` : 'No chart data yet'}
-      >
-        {hasData && (
-          <>
-            <defs>
-              <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="100%">
-                <stop stopColor="currentColor" stopOpacity=".16" />
-                <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
-              </linearGradient>
-            </defs>
-            <path d={fillPath} fill={`url(#${gradientId})`} />
-          </>
-        )}
-        <path d={path} fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"
-          strokeDasharray={hasData ? undefined : '2 3'} vectorEffect="non-scaling-stroke" />
-      </svg>
+      {dataPoints && <StatCardChart dataPoints={dataPoints} label={chartLabel ?? `${title} trend`} accent={accent} />}
     </div>
   );
 }

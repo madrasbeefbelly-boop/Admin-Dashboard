@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { StatCard } from '@/components/dashboard/StatCard';
-import { statSeries } from '@/lib/stat-series';
 import { isMockMode } from '@/lib/mock-mode';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -187,8 +186,6 @@ export default function MenuPage() {
   const avgMargin = averageMenuMargin(menuItems);
   const totalItems = menuItems.length;
   const pricedItems = menuItems.filter((item) => item.is_available && item.selling_price != null);
-  const marginSeries = categories.map((category) => averageMenuMargin(menuItems.filter((item) => item.category === category)))
-    .filter((margin): margin is number => margin != null && Number.isFinite(margin));
 
   const openDishForm = (item: MenuCatalogItem | null = null) => {
     setEditing(item);
@@ -283,12 +280,11 @@ export default function MenuPage() {
   return (
     <DashboardLayout title="Menu & Costing" subtitle="Manage your dishes and pricing">
       <div className="summary-counts mb-6 grid grid-cols-3 gap-2 md:gap-4">
-        <StatCard title="Total Dishes" value={totalItems} icon={UtensilsCrossed}
-          dataPoints={statSeries(menuItems, (item) => item.category)} chartLabel="Dishes by category" />
+        <StatCard title="Total Dishes" value={totalItems} icon={UtensilsCrossed} />
         <StatCard title="Avg Margin" value={avgMargin == null ? '—' : avgMargin.toFixed(0) + '%'} icon={TrendingUp}
-          accent="text-emerald-600" dataPoints={marginSeries} chartLabel="Average margin by category" />
+          accent="text-emerald-600" />
         <StatCard title="Priced Dishes" value={pricedItems.length} icon={UtensilsCrossed}
-          accent="text-sky-600" dataPoints={statSeries(pricedItems, (item) => item.category)} chartLabel="Priced dishes by category" />
+          accent="text-sky-600" />
       </div>
 
       {/* Filters & View Toggle Bar */}
